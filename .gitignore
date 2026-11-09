@@ -1,0 +1,6 @@
+node_modules/
+extension/dist/
+extension/dist-standalone/
+extension/.keys/
+host/bin/
+host/obj/

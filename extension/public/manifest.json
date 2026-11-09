@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "TabRail",
+  "description": "Always-visible sidebar listing every Chrome window and tab.",
+  "version": "0.1.0",
+  "minimum_chrome_version": "120",
+  "permissions": ["tabs", "tabGroups", "storage", "favicon"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open TabRail sidebar"
+  },
+  "commands": {
+    "focus-sidebar": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+1"
+      },
+      "description": "Open or focus the TabRail sidebar",
+      "global": true
+    }
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4iX7+Up42O0mvHVwcxFJeCjEbe3KwClF3prphlJ9j+mujKckAJuSUJevglErZpyqzk4ws0cOKPGJwOdrI/QEzIaID02Hua7yy2TKR/ILGML0eENS9F8sW2+XvpwHY6Tcpq6/2drCCtOrUESu/xO4Y7i+I1ORpt//p9qEigRyEeKqEUO/4zNKx5Yodfam/73tmrAz6TZQeaTwzxnaUqxL9OR6VfnCtlWeLgkAvTBFpA5NOBgL319s6vqVNBLQUKQ7AWH5vwc1OVfNEhCLmgrXoL7+eZfYc22FfV/k8OwHEBEEYgwWgqRoLosq3ZBLd3cozyHkn2iL+30rA1h9J5oaXQIDAQAB"
+}
