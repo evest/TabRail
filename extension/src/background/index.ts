@@ -225,6 +225,12 @@ async function handle(msg: FromUi, sink: UiSink): Promise<void> {
     case 'activateTab': {
       const tab = store.tabs.get(msg.tabId);
       if (!tab) return;
+      if (msg.minimizeIfCurrent && store.isCurrent(msg.tabId)) {
+        await chrome.windows.update(tab.windowId, { state: 'minimized' });
+        store.windowStateChanged(tab.windowId, 'minimized');
+        scheduler.schedule();
+        return;
+      }
       await chrome.tabs.update(msg.tabId, { active: true });
       await chrome.windows.update(tab.windowId, { focused: true });
       return;

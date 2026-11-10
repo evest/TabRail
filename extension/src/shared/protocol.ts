@@ -67,8 +67,12 @@ export type ToUi =
 
 export type FromUi =
   | { type: 'ready' }
-  /** Activates the tab and focuses its window. */
-  | { type: 'activateTab'; tabId: number }
+  /**
+   * Activates the tab and focuses its window. With `minimizeIfCurrent` (mouse clicks), clicking
+   * the tab that is already active in the focused, non-minimized window minimizes that window
+   * instead, like clicking the active button on the Windows taskbar.
+   */
+  | { type: 'activateTab'; tabId: number; minimizeIfCurrent?: boolean }
   | { type: 'closeTab'; tabId: number }
   | { type: 'toggleWindowCollapsed'; windowId: number }
   | { type: 'toggleGroupCollapsed'; groupId: number }

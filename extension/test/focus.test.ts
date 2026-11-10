@@ -53,6 +53,17 @@ describe('focus tracking', () => {
     expect(s.mru[21]).toBe(1234);
   });
 
+  it('isCurrent: only the active tab of the focused, non-minimized window', () => {
+    const s = setup();
+    expect(s.isCurrent(11)).toBe(true);
+    expect(s.isCurrent(12)).toBe(false); // not active
+    expect(s.isCurrent(21)).toBe(false); // active, but window 2 is not focused
+    s.windowStateChanged(1, 'minimized');
+    expect(s.isCurrent(11)).toBe(false); // clicking again restores
+    s.windowStateChanged(1, 'maximized');
+    expect(s.isCurrent(11)).toBe(true);
+  });
+
   it('a tab activated in the sidebar window is not recorded', () => {
     const s = setup();
     s.tabActivated(31, 3, 99);

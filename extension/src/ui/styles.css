@@ -9,9 +9,15 @@
   --line: #e2e2e6;
   --hover: rgba(0, 0, 0, 0.055);
   --selected: rgba(10, 100, 220, 0.14);
-  --focus-tint: rgba(10, 100, 220, 0.065);
+  --focus-tint: rgba(10, 100, 220, 0.12);
   --accent: #0a64dc;
   --input-bg: #fff;
+  --head-bg: #ececef;
+  --head-hover: #e2e2e7;
+  --head-focused: #0a64dc;
+  --head-focused-fg: #fff;
+  --current-tab: rgba(10, 100, 220, 0.26);
+  --fg-dim-head: #5c5c62;
 
   --m1: #3b82f6;
   --m2: #e0623a;
@@ -42,9 +48,15 @@
     --line: #2f2f33;
     --hover: rgba(255, 255, 255, 0.07);
     --selected: rgba(90, 160, 255, 0.24);
-    --focus-tint: rgba(90, 160, 255, 0.09);
+    --focus-tint: rgba(90, 160, 255, 0.14);
     --accent: #5aa0ff;
     --input-bg: #2a2a2d;
+    --head-bg: #2a2a2e;
+    --head-hover: #333338;
+    --head-focused: #2f6fd0;
+    --head-focused-fg: #fff;
+    --current-tab: rgba(90, 160, 255, 0.34);
+    --fg-dim-head: #b4b4ba;
 
     --g-grey: #bdc1c6;
     --g-blue: #8ab4f8;
@@ -201,13 +213,16 @@ button {
 .tab.active .title {
   font-weight: 600;
 }
+.tab.global-active {
+  background: var(--current-tab);
+}
 .tab.global-active::before {
   content: '';
   position: absolute;
   left: 0;
-  top: 3px;
-  bottom: 3px;
-  width: 3px;
+  top: 2px;
+  bottom: 2px;
+  width: 4px;
   border-radius: 0 2px 2px 0;
   background: var(--accent);
 }
@@ -259,29 +274,45 @@ button {
 
 .marker {
   flex: none;
-  min-width: 13px;
-  height: 13px;
-  padding: 0 2px;
-  border-radius: 3px;
-  color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 13px;
-  text-align: center;
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
 }
 
 /* window header */
 .whead {
   font-weight: 600;
+  background: var(--head-bg);
+}
+.whead:hover {
+  background: var(--head-hover);
+}
+.win.focused .whead {
+  background: var(--head-focused);
+  color: var(--head-focused-fg);
+}
+.win.focused .whead .count,
+.win.focused .whead .chev,
+.win.focused .whead .ico {
+  color: var(--head-focused-fg);
+  opacity: 0.85;
+}
+.win.focused .whead .marker {
+  box-shadow: 0 0 0 1px var(--head-focused-fg);
 }
 .whead .title {
   font-weight: 600;
 }
 .whead.dim {
-  color: var(--fg-dim);
+  color: var(--fg-dim-head);
 }
 .whead.dim .marker {
-  opacity: 0.55;
+  opacity: 0.6;
+}
+/* focused-but-minimized: keep text readable on the solid header, signal "dim" by fading the fill */
+.win.focused .whead.dim {
+  color: var(--head-focused-fg);
+  background: color-mix(in srgb, var(--head-focused) 55%, var(--bg));
 }
 .chev-btn {
   flex: none;

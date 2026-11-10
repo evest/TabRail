@@ -5,6 +5,7 @@ import { buildMainList, isGlobalActive, tabIndex, windowMarkers } from './viewMo
 import { filterTabs } from './filter';
 import { TabRow } from './components/TabRow';
 import { GroupHeader, WindowHeader } from './components/Headers';
+import { FocusClickGuard, windowFocusSource } from './focusGuard';
 
 export function App({ transport }: { transport: Transport }) {
   const [snap, setSnap] = useState<Snapshot | null>(null);
@@ -27,9 +28,16 @@ export function App({ transport }: { transport: Transport }) {
   );
   useEffect(() => input.current?.focus(), []);
 
+  const [focusGuard] = useState(() => new FocusClickGuard(windowFocusSource(window)));
+  // Mouse activation. The click that merely brings the sidebar into focus never minimizes.
   const activate = useCallback(
-    (tabId: number) => transport.send({ type: 'activateTab', tabId }),
-    [transport],
+    (tabId: number) =>
+      transport.send({
+        type: 'activateTab',
+        tabId,
+        minimizeIfCurrent: !focusGuard.isFocusingClick(),
+      }),
+    [transport, focusGuard],
   );
   const close = useCallback(
     (tabId: number) => transport.send({ type: 'closeTab', tabId }),
@@ -62,7 +70,7 @@ export function App({ transport }: { transport: Transport }) {
       setSel(Math.max(0, Math.min(filtered.length - 1, selIndex + d)));
     } else if (e.key === 'Enter') {
       const tab = filtered[selIndex];
-      if (tab) activate(tab.id);
+      if (tab) transport.send({ type: 'activateTab', tabId: tab.id });
     } else if (e.key === 'Escape') {
       e.preventDefault();
       if (query) {

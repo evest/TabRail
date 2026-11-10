@@ -102,6 +102,13 @@ export class TabStore {
     return this.activeTabOf(this.lastFocusedWindowId)?.id ?? null;
   }
 
+  /** True if activating `tabId` should minimize its window instead (it is already the current tab). */
+  isCurrent(tabId: number): boolean {
+    const tab = this.tabs.get(tabId);
+    if (!tab || !tab.active || tab.windowId !== this.lastFocusedWindowId) return false;
+    return this.windows.get(tab.windowId)?.state !== 'minimized';
+  }
+
   // ---- windows -------------------------------------------------------------
 
   windowCreated(w: RawWindow): void {

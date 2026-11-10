@@ -97,7 +97,9 @@ export type ToUi =
 
 export type FromUi =
   | { type: 'ready' }
-  | { type: 'activateTab'; tabId: number }    // activates the tab and focuses its window
+  | { type: 'activateTab'; tabId: number; minimizeIfCurrent?: boolean }
+      // activates the tab and focuses its window; with minimizeIfCurrent (mouse clicks), clicking the
+      // already-active tab / header of the focused window minimizes it instead (taskbar behavior)
   | { type: 'closeTab'; tabId: number }
   | { type: 'toggleWindowCollapsed'; windowId: number }
   | { type: 'toggleGroupCollapsed'; groupId: number }
