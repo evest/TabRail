@@ -33,6 +33,11 @@ export class TabStore {
   readonly collapsedGroups = new Set<number>();
   sidebarWindowId: number | null = null;
   lastFocusedWindowId: number | null = null;
+  /**
+   * Raw onFocusChanged history (including WINDOW_ID_NONE and the sidebar), newest last. Used to
+   * tell which window owned the foreground right before the sidebar was clicked.
+   */
+  private focusHistory: { id: number; at: number }[] = [];
 
   /** Set when state that must be persisted changed; cleared by the owner after saving. */
   dirty = { mru: false, collapsed: false };
@@ -46,6 +51,7 @@ export class TabStore {
     this.groups.clear();
     this.sidebarWindowId = null;
     this.lastFocusedWindowId = null;
+    this.focusHistory = [];
 
     for (const w of data.windows) {
       if (w.id == null) continue;
@@ -78,6 +84,8 @@ export class TabStore {
       data.focusedWindowId ??
       null;
     if (focused != null && this.isIncluded(focused)) this.lastFocusedWindowId = focused;
+    const rawFocused = data.windows.find((w) => w.focused && w.id != null)?.id;
+    if (rawFocused != null) this.focusHistory.push({ id: rawFocused, at: 0 });
   }
 
   // ---- queries -------------------------------------------------------------
@@ -129,10 +137,47 @@ export class TabStore {
 
   /** windows.onFocusChanged. Ignores WINDOW_ID_NONE, the sidebar and non-normal windows. */
   windowFocused(windowId: number, at: number): void {
+    this.focusHistory.push({ id: windowId, at });
+    if (this.focusHistory.length > 8) this.focusHistory.shift();
     if (windowId === WINDOW_ID_NONE || !this.isIncluded(windowId)) return;
     this.lastFocusedWindowId = windowId;
     const active = this.activeTabOf(windowId);
     if (active?.id != null) this.touch(active.id, at);
+  }
+
+  /**
+   * The window that had the foreground before the sidebar took it (WINDOW_ID_NONE if another
+   * application had it). Skips the sidebar's own focus entries and the transient NONE that Chrome
+   * may report while focus moves to the sidebar (or, in Phase B, to the host app) for this click.
+   */
+  foregroundBeforeSidebar(now: number, transientMs = 1000): number {
+    const h = this.focusHistory;
+    for (let i = h.length - 1; i >= 0; i--) {
+      const e = h[i]!;
+      if (e.id === this.sidebarWindowId) continue;
+      if (e.id === WINDOW_ID_NONE && (h[i + 1]?.at ?? now) - e.at < transientMs) continue;
+      return e.id;
+    }
+    return WINDOW_ID_NONE;
+  }
+
+  /**
+   * What a mouse click on a tab (or its window header) should do, taskbar style:
+   * - not the current tab: activate it;
+   * - current tab, sidebar already had focus: minimize its window;
+   * - current tab, the click only moved focus from that window to the sidebar: nothing (the
+   *   sidebar keeps focus, so the next click minimizes);
+   * - current tab but another application had the foreground: bring the window back.
+   */
+  clickAction(
+    tabId: number,
+    focusingClick: boolean,
+    now: number,
+  ): 'activate' | 'minimize' | 'none' {
+    if (!this.isCurrent(tabId)) return 'activate';
+    if (!focusingClick) return 'minimize';
+    const windowId = this.tabs.get(tabId)!.windowId;
+    return this.foregroundBeforeSidebar(now) === windowId ? 'none' : 'activate';
   }
 
   windowStateChanged(windowId: number, state: string): void {

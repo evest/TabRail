@@ -68,11 +68,15 @@ export type ToUi =
 export type FromUi =
   | { type: 'ready' }
   /**
-   * Activates the tab and focuses its window. With `minimizeIfCurrent` (mouse clicks), clicking
-   * the tab that is already active in the focused, non-minimized window minimizes that window
-   * instead, like clicking the active button on the Windows taskbar.
+   * Activates the tab and focuses its window. Mouse clicks set `click`: clicking the tab that is
+   * already current minimizes its window instead (taskbar style), except when the click only moved
+   * focus from that window into the sidebar (`focusing`). See TabStore.clickAction.
    */
-  | { type: 'activateTab'; tabId: number; minimizeIfCurrent?: boolean }
+  | {
+      type: 'activateTab';
+      tabId: number;
+      click?: { focusing: boolean };
+    }
   | { type: 'closeTab'; tabId: number }
   | { type: 'toggleWindowCollapsed'; windowId: number }
   | { type: 'toggleGroupCollapsed'; groupId: number }

@@ -225,7 +225,11 @@ async function handle(msg: FromUi, sink: UiSink): Promise<void> {
     case 'activateTab': {
       const tab = store.tabs.get(msg.tabId);
       if (!tab) return;
-      if (msg.minimizeIfCurrent && store.isCurrent(msg.tabId)) {
+      const action = msg.click
+        ? store.clickAction(msg.tabId, msg.click.focusing, Date.now())
+        : 'activate';
+      if (action === 'none') return;
+      if (action === 'minimize') {
         await chrome.windows.update(tab.windowId, { state: 'minimized' });
         store.windowStateChanged(tab.windowId, 'minimized');
         scheduler.schedule();

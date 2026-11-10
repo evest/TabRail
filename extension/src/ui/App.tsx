@@ -35,7 +35,7 @@ export function App({ transport }: { transport: Transport }) {
       transport.send({
         type: 'activateTab',
         tabId,
-        minimizeIfCurrent: !focusGuard.isFocusingClick(),
+        click: { focusing: focusGuard.isFocusingClick() },
       }),
     [transport, focusGuard],
   );

@@ -70,3 +70,47 @@ describe('focus tracking', () => {
     expect(s.mru[31]).toBeUndefined();
   });
 });
+
+describe('clickAction (taskbar-style click on the current tab)', () => {
+  it('activates a tab that is not current', () => {
+    const s = setup();
+    expect(s.clickAction(12, false, 5000)).toBe('activate');
+    expect(s.clickAction(21, true, 5000)).toBe('activate');
+  });
+
+  it('minimizes when the sidebar already had focus', () => {
+    const s = setup();
+    s.windowFocused(3, 1000); // sidebar
+    expect(s.clickAction(11, false, 5000)).toBe('minimize');
+  });
+
+  it('does nothing when the click only moved focus from that window to the sidebar', () => {
+    const s = setup();
+    s.windowFocused(1, 1000);
+    s.windowFocused(WINDOW_ID_NONE, 4000); // transient, as Chrome may report mid-switch
+    s.windowFocused(3, 4001);
+    expect(s.clickAction(11, true, 4010)).toBe('none');
+  });
+
+  it('handles the click message arriving before the sidebar focus event', () => {
+    const s = setup();
+    s.windowFocused(1, 1000);
+    expect(s.clickAction(11, true, 4010)).toBe('none');
+  });
+
+  it('brings the window back when another application had the foreground', () => {
+    const s = setup();
+    s.windowFocused(1, 1000);
+    s.windowFocused(WINDOW_ID_NONE, 2000); // user switched to another app
+    s.windowFocused(3, 60_000); // ...and later clicks the sidebar
+    expect(s.clickAction(11, true, 60_010)).toBe('activate');
+  });
+
+  it('Phase B: no sidebar window, focus moves to the host app (NONE)', () => {
+    const s = setup();
+    s.setSidebarWindow(null);
+    s.windowFocused(1, 1000);
+    s.windowFocused(WINDOW_ID_NONE, 4000);
+    expect(s.clickAction(11, true, 4020)).toBe('none');
+  });
+});

@@ -94,7 +94,9 @@ export class MockTransport implements Transport {
       case 'activateTab': {
         const t = s.tabs.get(msg.tabId);
         if (!t) return;
-        if (msg.minimizeIfCurrent && s.isCurrent(msg.tabId)) {
+        const action = msg.click ? s.clickAction(msg.tabId, msg.click.focusing, now) : 'activate';
+        if (action === 'none') break;
+        if (action === 'minimize') {
           s.windowStateChanged(t.windowId, 'minimized');
           break;
         }
