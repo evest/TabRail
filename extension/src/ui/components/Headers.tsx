@@ -1,18 +1,30 @@
+import { useEffect, useRef } from 'preact/hooks';
 import type { GroupNode, WindowNode } from '../../shared/protocol';
 import { ChevronIcon, SleepIcon } from './Icons';
 
 export function WindowHeader(p: {
   win: WindowNode;
   title: string;
+  /** Show an inline name editor instead of the title. */
+  renaming?: boolean;
+  /** Finish renaming: the new name (empty clears it), or null to cancel. */
+  onRename?: (windowId: number, name: string | null) => void;
   onToggle: (windowId: number) => void;
   onActivate: () => void;
+  onMenu: (windowId: number, x: number, y: number) => void;
 }) {
   const dim = p.win.sleeping || p.win.minimized;
+  const active = p.win.tabs.find((t) => t.active);
+  const status = `${p.win.tabs.length} tabs${p.win.minimized ? ' · minimized' : ''}${p.win.sleeping ? ' · sleeping' : ''}`;
   return (
     <div
-      class={`row whead${dim ? ' dim' : ''}`}
-      title={`${p.win.tabs.length} tabs${p.win.minimized ? ' · minimized' : ''}${p.win.sleeping ? ' · sleeping' : ''}`}
+      class={`row whead${dim ? ' dim' : ''}${p.win.name ? ' named' : ''}`}
+      title={p.win.name && active ? `${p.win.name}\nActive: ${active.title}\n${status}` : status}
       onClick={p.onActivate}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        p.onMenu(p.win.id, e.clientX, e.clientY);
+      }}
     >
       <button
         class="chev-btn"
@@ -25,10 +37,53 @@ export function WindowHeader(p: {
       >
         <ChevronIcon open={!p.win.collapsed} />
       </button>
-      <span class="title">{p.title}</span>
+      {p.renaming ? (
+        <RenameInput
+          initial={p.win.name ?? ''}
+          placeholder={active?.title ?? 'Window name'}
+          onDone={(name) => p.onRename?.(p.win.id, name)}
+        />
+      ) : (
+        <span class="title">{p.title}</span>
+      )}
       {dim && <SleepIcon />}
       <span class="count">{p.win.tabs.length}</span>
     </div>
+  );
+}
+
+function RenameInput(p: {
+  initial: string;
+  placeholder: string;
+  onDone: (name: string | null) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const done = useRef(false);
+  const finish = (name: string | null) => {
+    if (done.current) return;
+    done.current = true;
+    p.onDone(name);
+  };
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+  }, []);
+  return (
+    <input
+      ref={ref}
+      class="rename"
+      aria-label="Window name"
+      defaultValue={p.initial}
+      placeholder={p.placeholder}
+      spellcheck={false}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') finish(e.currentTarget.value);
+        else if (e.key === 'Escape') finish(null);
+      }}
+      onBlur={(e) => finish(e.currentTarget.value)}
+    />
   );
 }
 

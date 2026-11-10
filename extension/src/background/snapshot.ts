@@ -57,6 +57,7 @@ export function buildSnapshot(
       minimized: win.state === 'minimized',
       sleeping: tabs.length > 0 && tabs.every((t) => t.sleeping),
       collapsed: store.collapsedWindows.has(wid),
+      ...(store.windowNames.has(wid) ? { name: store.windowNames.get(wid)!.name } : {}),
       tabs,
       groups,
     });

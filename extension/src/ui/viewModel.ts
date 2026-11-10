@@ -1,4 +1,14 @@
-import type { GroupNode, Snapshot, TabNode, WindowNode } from '../shared/protocol';
+import type {
+  FlatSort,
+  GroupNode,
+  MinimizedMode,
+  Snapshot,
+  TabNode,
+  WindowNode,
+} from '../shared/protocol';
+import { dupKey } from '../shared/dupKey';
+
+export { dupKey };
 
 export type Row =
   | { kind: 'tab'; key: string; tab: TabNode; depth: 0 | 1; group?: GroupNode }
@@ -10,23 +20,45 @@ export interface WindowBlock {
   rows: Row[];
 }
 
+export interface ListOptions {
+  /** Tabs to leave out (pinned tabs, unless shown in the list). */
+  hidden?: ReadonlySet<number>;
+  minimized?: MinimizedMode;
+  /** Show this window's header even if it has a single tab (while renaming it). */
+  forceHeader?: number | null;
+}
+
+/** Windows in display order: minimized ones kept in place, moved to the end, or left out. */
+export function orderWindows(
+  windows: WindowNode[],
+  minimized: MinimizedMode = 'inline',
+): WindowNode[] {
+  if (minimized === 'hidden') return windows.filter((w) => !w.minimized);
+  if (minimized === 'bottom')
+    return [...windows.filter((w) => !w.minimized), ...windows.filter((w) => w.minimized)];
+  return windows;
+}
+
 /**
  * Main list layout rules:
- * - a window with one tab is a single unindented tab row (no header);
- * - a window with more tabs is a header + indented tab rows; tab groups form a collapsible sub-level.
- * `hidden` tabs (pinned tabs, unless shown in the list) are left out; the structure (header, counts)
- * still reflects the whole window, and a window or group with nothing left to show disappears.
+ * - a window with one tab is a single unindented tab row (no header), unless it has a name;
+ * - otherwise a header (name, or the active tab's title) + indented tab rows; tab groups form a
+ *   collapsible sub-level.
+ * `hidden` tabs are left out; the structure (header, counts) still reflects the whole window, and a
+ * window or group with nothing left to show disappears.
  */
-export function buildMainList(s: Snapshot, hidden: ReadonlySet<number> = new Set()): WindowBlock[] {
-  return s.windows.flatMap((win): WindowBlock[] => {
+export function buildMainList(s: Snapshot, opts: ListOptions = {}): WindowBlock[] {
+  const hidden = opts.hidden ?? new Set<number>();
+  return orderWindows(s.windows, opts.minimized).flatMap((win): WindowBlock[] => {
     const visible = win.tabs.filter((t) => !hidden.has(t.id));
     if (visible.length === 0) return [];
-    if (win.tabs.length === 1) {
+    if (win.tabs.length === 1 && !win.name && opts.forceHeader !== win.id) {
       const tab = win.tabs[0]!;
       return [{ win, rows: [{ kind: 'tab', key: `t${tab.id}`, tab, depth: 0 }] }];
     }
     const active = win.tabs.find((t) => t.active) ?? win.tabs[0];
-    const rows: Row[] = [{ kind: 'window', key: `w${win.id}`, win, title: active?.title ?? '' }];
+    const title = win.name || active?.title || '';
+    const rows: Row[] = [{ kind: 'window', key: `w${win.id}`, win, title }];
     if (!win.collapsed) {
       const groups = new Map(win.groups.map((g) => [g.id, g]));
       let current: GroupNode | undefined;
@@ -43,6 +75,25 @@ export function buildMainList(s: Snapshot, hidden: ReadonlySet<number> = new Set
     }
     return [{ win, rows }];
   });
+}
+
+/**
+ * Flat layout: every tab in one list, with no window headers and no groups. `tabOrder` keeps the
+ * window order and each window's tab-strip order; `title` sorts by name (natural, case-insensitive).
+ */
+export function buildFlatList(
+  s: Snapshot,
+  opts: { hidden?: ReadonlySet<number>; minimized?: MinimizedMode; sort?: FlatSort } = {},
+): TabNode[] {
+  const hidden = opts.hidden ?? new Set<number>();
+  const tabs = orderWindows(s.windows, opts.minimized).flatMap((w) =>
+    w.tabs.filter((t) => !hidden.has(t.id)),
+  );
+  if (opts.sort === 'title') {
+    const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+    tabs.sort((a, b) => collator.compare(a.title, b.title) || a.id - b.id);
+  }
+  return tabs;
 }
 
 export function isGlobalActive(tab: TabNode, s: Snapshot): boolean {
@@ -62,20 +113,6 @@ export function timeAgo(then: number, now: number): string {
   if (min < 60) return `${min}m`;
   const h = Math.floor(min / 60);
   return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
-}
-
-/**
- * Identity for duplicate detection: the URL without its #fragment. Blank and new-tab pages never
- * count as duplicates (having several open is normal).
- */
-export function dupKey(url: string): string | null {
-  const u = url.split('#')[0]!;
-  if (
-    !u ||
-    /^(about:blank|about:newtab|chrome:\/\/newtab|chrome:\/\/new-tab-page|edge:\/\/newtab)/.test(u)
-  )
-    return null;
-  return u;
 }
 
 /** dupKey -> number of open tabs with that key, only for keys open more than once. */

@@ -20,6 +20,8 @@ export interface TabRowProps {
   /** Tab is in the Pinned section (hover button says "Unpin"). */
   railPinned?: boolean;
   onTogglePin?: (tabId: number) => void;
+  /** Right-click: open the context menu at viewport coordinates. */
+  onMenu?: (tabId: number, x: number, y: number) => void;
   onActivate: (tabId: number) => void;
   onClose: (tabId: number) => void;
 }
@@ -49,6 +51,11 @@ function TabRowImpl(p: TabRowProps) {
       data-selected={p.selected ? '' : undefined}
       onClick={() => p.onActivate(tab.id)}
       onMouseDown={(e) => e.button === 1 && e.preventDefault() /* no autoscroll */}
+      onContextMenu={(e) => {
+        if (!p.onMenu) return;
+        e.preventDefault();
+        p.onMenu(tab.id, e.clientX, e.clientY);
+      }}
       onAuxClick={(e) => {
         if (e.button === 1) {
           e.preventDefault();
@@ -140,6 +147,7 @@ function sameProps(a: TabRowProps, b: TabRowProps): boolean {
     a.pinnedEntry === b.pinnedEntry &&
     a.railPinned === b.railPinned &&
     a.onTogglePin === b.onTogglePin &&
+    a.onMenu === b.onMenu &&
     a.group?.color === b.group?.color &&
     a.onActivate === b.onActivate &&
     a.onClose === b.onClose &&

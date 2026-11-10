@@ -4,7 +4,7 @@
 
 import { DEFAULT_SETTINGS, PORT_NAME } from '../shared/protocol';
 import type { FromUi, Settings, ToUi } from '../shared/protocol';
-import { TabStore, type RailPin } from './tabStore';
+import { TabStore, type RailPin, type WindowName } from './tabStore';
 import { buildSnapshot } from './snapshot';
 import { FaviconCache, extensionFaviconFetcher } from './favicons';
 import { SnapshotScheduler } from './scheduler';
@@ -38,7 +38,16 @@ const scheduler = new SnapshotScheduler(50, (seq) => {
   void persist();
 });
 
+/** Last saved window names (JSON), so they are only written when something changed. */
+let savedNames = '[]';
+
 async function persist(): Promise<void> {
+  // Names carry their windows' URLs for re-matching after a restart, so they change as tabs do.
+  const names = JSON.stringify(store.windowNamesForStorage());
+  if (names !== savedNames) {
+    savedNames = names;
+    await chrome.storage.local.set({ windowNames: JSON.parse(names) as WindowName[] });
+  }
   if (store.dirty.mru) {
     store.dirty.mru = false;
     await chrome.storage.session.set({ mru: store.mru });
@@ -72,7 +81,7 @@ async function init(): Promise<void> {
     chrome.tabGroups.query({}),
     chrome.windows.getLastFocused({ windowTypes: ['normal'] }).catch(() => undefined),
     chrome.storage.session.get('mru'),
-    chrome.storage.local.get(['collapsed', 'settings', 'railPins']),
+    chrome.storage.local.get(['collapsed', 'settings', 'railPins', 'windowNames']),
   ]);
   const collapsed = (local.collapsed ?? {}) as { windows?: number[]; groups?: number[] };
   settings = { ...DEFAULT_SETTINGS, ...((local.settings as Partial<Settings>) ?? {}) };
@@ -84,7 +93,9 @@ async function init(): Promise<void> {
     collapsedWindows: collapsed.windows,
     collapsedGroups: collapsed.groups,
     railPins: (local.railPins as RailPin[] | undefined) ?? [],
+    windowNames: (local.windowNames as WindowName[] | undefined) ?? [],
   });
+  savedNames = JSON.stringify(local.windowNames ?? []);
   for (const t of store.tabs.values()) ensureFavicon(t);
   scheduler.schedule();
 }
@@ -247,6 +258,29 @@ async function handle(msg: FromUi, sink: UiSink): Promise<void> {
     }
     case 'closeTab':
       await chrome.tabs.remove(msg.tabId);
+      return;
+    case 'closeDuplicates': {
+      const ids = store.duplicatesOf(msg.tabId);
+      if (ids.length) await chrome.tabs.remove(ids);
+      return;
+    }
+    case 'minimizeWindow':
+      if (!store.isIncluded(msg.windowId)) return;
+      await chrome.windows.update(msg.windowId, { state: 'minimized' });
+      store.windowStateChanged(msg.windowId, 'minimized');
+      scheduler.schedule();
+      return;
+    case 'focusWindow':
+      if (!store.isIncluded(msg.windowId)) return;
+      await chrome.windows.update(msg.windowId, { focused: true });
+      return;
+    case 'renameWindow':
+      store.renameWindow(msg.windowId, msg.name);
+      scheduler.schedule();
+      return;
+    case 'setAllWindowsCollapsed':
+      store.setAllWindowsCollapsed(msg.collapsed);
+      scheduler.schedule();
       return;
     case 'toggleWindowCollapsed':
       store.toggleWindowCollapsed(msg.windowId);

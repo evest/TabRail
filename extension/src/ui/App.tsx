@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { Snapshot, TabNode } from '../shared/protocol';
+import type { Settings, Snapshot, TabNode } from '../shared/protocol';
 import type { Transport } from './transport/types';
 import {
+  buildFlatList,
   buildMainList,
   dupKey,
   duplicateCounts,
@@ -13,13 +14,28 @@ import { filterTabs } from './filter';
 import { TabRow } from './components/TabRow';
 import { GroupHeader, WindowHeader } from './components/Headers';
 import { GearIcon } from './components/Icons';
+import { ContextMenu, type MenuItem } from './components/ContextMenu';
+
 import { FocusClickGuard, windowFocusSource } from './focusGuard';
+
+type MenuState = { x: number; y: number } & ({ tabId: number } | { windowId: number });
 
 export function App({ transport }: { transport: Transport }) {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [query, setQuery] = useState('');
   const [sel, setSel] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const openTabMenu = useCallback(
+    (tabId: number, x: number, y: number) => setMenu({ x, y, tabId }),
+    [],
+  );
+  const openWindowMenu = useCallback(
+    (windowId: number, x: number, y: number) => setMenu({ x, y, windowId }),
+    [],
+  );
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const [renaming, setRenaming] = useState<number | null>(null);
   // Clock for the Recent strip's "time since" labels; snapshots only arrive on tab events.
   const [now, setNow] = useState(() => Date.now());
   const input = useRef<HTMLInputElement>(null);
@@ -73,13 +89,44 @@ export function App({ transport }: { transport: Transport }) {
     (tabId: number) => transport.send({ type: 'toggleRailPin', tabId }),
     [transport],
   );
+  const finishRename = useCallback(
+    (windowId: number, name: string | null) => {
+      setRenaming(null);
+      if (name !== null) transport.send({ type: 'renameWindow', windowId, name });
+    },
+    [transport],
+  );
+  const updateSettings = (patch: Partial<Settings>) =>
+    transport.send({ type: 'updateSettings', patch });
 
   const byId = useMemo(() => (snap ? tabIndex(snap) : new Map()), [snap]);
-  const blocks = useMemo(() => {
-    if (!snap) return [];
-    const hidden = new Set(snap.settings.showPinnedInList ? [] : snap.pinned);
-    return buildMainList(snap, hidden);
-  }, [snap]);
+  const flat = snap?.settings.layout === 'flat';
+  const hidden = useMemo(
+    () => new Set(!snap || snap.settings.showPinnedInList ? [] : snap.pinned),
+    [snap],
+  );
+  const blocks = useMemo(
+    () =>
+      snap && !flat
+        ? buildMainList(snap, {
+            hidden,
+            minimized: snap.settings.minimizedWindows,
+            forceHeader: renaming,
+          })
+        : [],
+    [snap, flat, hidden, renaming],
+  );
+  const flatTabs = useMemo(
+    () =>
+      snap && flat
+        ? buildFlatList(snap, {
+            hidden,
+            minimized: snap.settings.minimizedWindows,
+            sort: snap.settings.flatSort,
+          })
+        : [],
+    [snap, flat, hidden],
+  );
   const filtered = useMemo(() => (snap && query ? filterTabs(snap, query) : []), [snap, query]);
   const filtering = query.trim().length > 0;
   const selIndex = Math.min(sel, Math.max(filtered.length - 1, 0));
@@ -99,6 +146,14 @@ export function App({ transport }: { transport: Transport }) {
   }, [selIndex, filtering]);
 
   function onKeyDown(e: KeyboardEvent) {
+    if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+      // Keyboard access to the context menu for the selected filter result.
+      e.preventDefault();
+      const tab = filtered[selIndex];
+      const row = results.current?.querySelector('[data-selected]')?.getBoundingClientRect();
+      if (tab && row) setMenu({ x: row.left + 24, y: row.bottom, tabId: tab.id });
+      return;
+    }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       const d = e.key === 'ArrowDown' ? 1 : -1;
@@ -128,8 +183,78 @@ export function App({ transport }: { transport: Transport }) {
       onTogglePin: togglePin,
       onActivate: activate,
       onClose: close,
+      onMenu: openTabMenu,
     };
   };
+
+  function windowItems(windowId: number): MenuItem[] {
+    const win = snap?.windows.find((w) => w.id === windowId);
+    if (!win) return [];
+    // Names only show in the windows layout.
+    const rename: MenuItem[] = flat
+      ? []
+      : [
+          {
+            label: win.name ? 'Rename window…' : 'Name window…',
+            onSelect: () => setRenaming(windowId),
+          },
+        ];
+    return [...rename, ...stateItems(win)];
+  }
+
+  function stateItems(win: { id: number; minimized: boolean }): MenuItem[] {
+    const windowId = win.id;
+    return win.minimized
+      ? [
+          {
+            label: 'Restore window',
+            onSelect: () => transport.send({ type: 'focusWindow', windowId }),
+          },
+        ]
+      : [
+          {
+            label: 'Minimize window',
+            onSelect: () => transport.send({ type: 'minimizeWindow', windowId }),
+          },
+        ];
+  }
+
+  function menuItems(m: MenuState): MenuItem[] {
+    if ('windowId' in m)
+      return [
+        ...windowItems(m.windowId),
+        'separator',
+        {
+          label: 'Collapse all windows',
+          onSelect: () => transport.send({ type: 'setAllWindowsCollapsed', collapsed: true }),
+        },
+        {
+          label: 'Expand all windows',
+          onSelect: () => transport.send({ type: 'setAllWindowsCollapsed', collapsed: false }),
+        },
+      ];
+    const tab = byId.get(m.tabId);
+    if (!tab) return [];
+    const k = dupKey(tab.url);
+    const others = (k ? (dups.get(k) ?? 1) : 1) - 1;
+    const items: MenuItem[] = [
+      {
+        label: pinnedSet.has(tab.id) ? 'Unpin' : 'Pin to top',
+        onSelect: () => togglePin(tab.id),
+      },
+    ];
+    if (others > 0)
+      items.push({
+        label: others === 1 ? 'Close duplicate' : `Close ${others} duplicates`,
+        onSelect: () => transport.send({ type: 'closeDuplicates', tabId: tab.id }),
+      });
+    items.push('separator', ...windowItems(tab.windowId), 'separator', {
+      label: 'Close tab',
+      danger: true,
+      onSelect: () => close(tab.id),
+    });
+    return items;
+  }
   const pinnedTabs = (snap?.pinned ?? []).flatMap((id) => byId.get(id) ?? []);
   const slots = snap?.settings.recentSlots ?? 5;
 
@@ -162,18 +287,58 @@ export function App({ transport }: { transport: Transport }) {
         </div>
         {settingsOpen && snap && (
           <div class="settings" role="dialog" aria-label="Settings">
-            <label>
-              <input
-                type="checkbox"
-                checked={snap.settings.showPinnedInList}
+            <label class="field">
+              <span>List</span>
+              <select
+                id="set-layout"
+                value={snap.settings.layout}
                 onChange={(e) =>
-                  transport.send({
-                    type: 'updateSettings',
-                    patch: { showPinnedInList: e.currentTarget.checked },
+                  updateSettings({ layout: e.currentTarget.value as Settings['layout'] })
+                }
+              >
+                <option value="windows">Windows and groups</option>
+                <option value="flat">Flat list of tabs</option>
+              </select>
+            </label>
+            {flat && (
+              <label class="field">
+                <span>Sort by</span>
+                <select
+                  id="set-sort"
+                  value={snap.settings.flatSort}
+                  onChange={(e) =>
+                    updateSettings({ flatSort: e.currentTarget.value as Settings['flatSort'] })
+                  }
+                >
+                  <option value="tabOrder">Window and tab order</option>
+                  <option value="title">Name</option>
+                </select>
+              </label>
+            )}
+            <label class="field">
+              <span>Minimized</span>
+              <select
+                id="set-minimized"
+                value={snap.settings.minimizedWindows}
+                onChange={(e) =>
+                  updateSettings({
+                    minimizedWindows: e.currentTarget.value as Settings['minimizedWindows'],
                   })
                 }
+              >
+                <option value="inline">Keep in place</option>
+                <option value="bottom">Move to the bottom</option>
+                <option value="hidden">Hide</option>
+              </select>
+            </label>
+            <label class="check">
+              <input
+                id="set-pinned"
+                type="checkbox"
+                checked={snap.settings.showPinnedInList}
+                onChange={(e) => updateSettings({ showPinnedInList: e.currentTarget.checked })}
               />
-              Also show pinned tabs in the window list
+              Also show pinned tabs in the list
             </label>
           </div>
         )}
@@ -236,6 +401,15 @@ export function App({ transport }: { transport: Transport }) {
               />
             ))
           )
+        ) : flat ? (
+          flatTabs.map((tab) => (
+            <TabRow
+              key={tab.id}
+              {...common(tab)}
+              depth={0}
+              globalActive={isGlobalActive(tab, snap!)}
+            />
+          ))
         ) : (
           blocks.map((b) => (
             <section key={b.win.id} class={`win${b.win.focused ? ' focused' : ''}`}>
@@ -245,7 +419,10 @@ export function App({ transport }: { transport: Transport }) {
                     key={r.key}
                     win={r.win}
                     title={r.title}
+                    renaming={renaming === r.win.id}
+                    onRename={finishRename}
                     onToggle={toggleWindow}
+                    onMenu={openWindowMenu}
                     onActivate={() => {
                       const t = r.win.tabs.find((x) => x.active);
                       if (t) activate(t.id);
@@ -267,6 +444,9 @@ export function App({ transport }: { transport: Transport }) {
           ))
         )}
       </div>
+      {menu && snap && (
+        <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu)} onClose={closeMenu} />
+      )}
     </div>
   );
 }

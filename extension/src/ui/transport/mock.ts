@@ -106,18 +106,25 @@ export class MockTransport implements Transport {
         s.windowFocused(t.windowId, now);
         break;
       }
-      case 'closeTab': {
-        const t = s.tabs.get(msg.tabId);
-        if (!t) return;
-        const wasActive = t.active;
-        s.tabRemoved(msg.tabId);
-        if (s.tabsOf(t.windowId).length === 0) s.windowRemoved(t.windowId);
-        else if (wasActive) {
-          const next = s.tabsOf(t.windowId)[Math.min(t.index, s.tabsOf(t.windowId).length - 1)];
-          if (next?.id != null) s.tabActivated(next.id, t.windowId, now);
-        }
+      case 'closeTab':
+        this.closeOne(msg.tabId, now);
         break;
-      }
+      case 'closeDuplicates':
+        for (const id of s.duplicatesOf(msg.tabId)) this.closeOne(id, now);
+        break;
+      case 'minimizeWindow':
+        s.windowStateChanged(msg.windowId, 'minimized');
+        break;
+      case 'focusWindow':
+        s.windowStateChanged(msg.windowId, 'normal');
+        s.windowFocused(msg.windowId, now);
+        break;
+      case 'renameWindow':
+        s.renameWindow(msg.windowId, msg.name);
+        break;
+      case 'setAllWindowsCollapsed':
+        s.setAllWindowsCollapsed(msg.collapsed);
+        break;
       case 'toggleWindowCollapsed':
         s.toggleWindowCollapsed(msg.windowId);
         break;
@@ -135,6 +142,19 @@ export class MockTransport implements Transport {
         return;
     }
     this.schedule();
+  }
+
+  private closeOne(tabId: number, now: number): void {
+    const s = this.store;
+    const t = s.tabs.get(tabId);
+    if (!t) return;
+    const wasActive = t.active;
+    s.tabRemoved(tabId);
+    if (s.tabsOf(t.windowId).length === 0) s.windowRemoved(t.windowId);
+    else if (wasActive) {
+      const next = s.tabsOf(t.windowId)[Math.min(t.index, s.tabsOf(t.windowId).length - 1)];
+      if (next?.id != null) s.tabActivated(next.id, t.windowId, now);
+    }
   }
 
   onMessage(cb: (msg: ToUi) => void): () => void {

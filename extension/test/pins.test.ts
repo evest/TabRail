@@ -79,7 +79,7 @@ describe('duplicates', () => {
 describe('pinned tabs in the window list', () => {
   const rowsOf = (hidden: number[]) => {
     const snap = buildSnapshot(setup(), 1, DEFAULT_SETTINGS);
-    return buildMainList(snap, new Set(hidden)).map((b) => b.rows.map((r) => r.key));
+    return buildMainList(snap, { hidden: new Set(hidden) }).map((b) => b.rows.map((r) => r.key));
   };
 
   it('leaves hidden tabs out but keeps the window header', () => {
@@ -92,5 +92,14 @@ describe('pinned tabs in the window list', () => {
 
   it('defaults to hiding pinned tabs', () => {
     expect(DEFAULT_SETTINGS.showPinnedInList).toBe(false);
+  });
+});
+
+describe('duplicatesOf (Close duplicates)', () => {
+  it('returns the other tabs with the same URL, ignoring the fragment', () => {
+    const s = setup();
+    expect(s.duplicatesOf(11)).toEqual([21]);
+    expect(s.duplicatesOf(21)).toEqual([11]);
+    expect(s.duplicatesOf(12)).toEqual([]);
   });
 });

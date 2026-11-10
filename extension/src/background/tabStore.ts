@@ -1,5 +1,6 @@
 import type { RawGroup, RawTab, RawWindow } from './model';
 import { WINDOW_ID_NONE } from './model';
+import { dupKey } from '../shared/dupKey';
 
 interface WinState {
   id: number;
@@ -17,6 +18,25 @@ export interface StoreInit {
   collapsedGroups?: number[];
   /** Persisted rail pins; re-matched to live tabs (tab ids don't survive browser restarts). */
   railPins?: RailPin[];
+  /** Persisted window names; re-matched by tab URLs (window ids don't survive restarts). */
+  windowNames?: WindowName[];
+}
+
+/** A sidebar-only window name plus the window's tab URLs, for re-matching after a restart. */
+export interface WindowName {
+  windowId: number;
+  name: string;
+  urls: string[];
+}
+
+/** Share of URLs two windows have in common (0..1), relative to the larger window. */
+export function urlOverlap(a: readonly string[], b: readonly string[]): number {
+  const sa = new Set(a);
+  const sb = new Set(b);
+  if (sa.size === 0 || sb.size === 0) return 0;
+  let common = 0;
+  for (const u of sa) if (sb.has(u)) common++;
+  return common / Math.max(sa.size, sb.size);
 }
 
 /** A tab pinned to the sidebar's Pinned section (not Chrome's own tab pinning). */
@@ -43,6 +63,13 @@ export class TabStore {
   lastFocusedWindowId: number | null = null;
   /** Tab ids pinned to the sidebar's Pinned section, in pin order. */
   railPins: number[] = [];
+  /** windowId -> sidebar-only name and the last known (non-empty) tab URLs. */
+  readonly windowNames = new Map<number, { name: string; urls: string[] }>();
+  /**
+   * Names of windows closed this session, kept so that closing Chrome (which closes every window)
+   * doesn't lose them before the next start re-matches them. Capped; cleared on init.
+   */
+  private closedNames: WindowName[] = [];
   /**
    * Raw onFocusChanged history (including WINDOW_ID_NONE and the sidebar), newest last. Used to
    * tell which window owned the foreground right before the sidebar was clicked.
@@ -88,6 +115,8 @@ export class TabStore {
       this.collapsedWindows.size !== (data.collapsedWindows?.length ?? 0) ||
       this.collapsedGroups.size !== (data.collapsedGroups?.length ?? 0);
 
+    this.matchWindowNames(data.windowNames ?? []);
+
     // Rail pins: same tab id and URL (service worker restart), else the first unclaimed tab with
     // the same URL (browser restart, where tab ids are reassigned). Unmatched pins are dropped.
     this.railPins = [];
@@ -114,6 +143,15 @@ export class TabStore {
   }
 
   // ---- queries -------------------------------------------------------------
+
+  /** Other tabs (in listed windows) with the same URL as this one; see shared/dupKey. */
+  duplicatesOf(tabId: number): number[] {
+    const key = dupKey(this.tabs.get(tabId)?.url ?? '');
+    if (!key) return [];
+    return [...this.tabs.values()]
+      .filter((t) => t.id !== tabId && this.isIncluded(t.windowId) && dupKey(t.url ?? '') === key)
+      .map((t) => t.id!);
+  }
 
   /** Windows that appear in the model: normal windows other than the sidebar itself. */
   isIncluded(windowId: number): boolean {
@@ -151,6 +189,11 @@ export class TabStore {
   }
 
   windowRemoved(windowId: number): void {
+    const named = this.windowNames.get(windowId);
+    if (named) {
+      this.windowNames.delete(windowId);
+      this.closedNames = [{ windowId, ...named }, ...this.closedNames].slice(0, 10);
+    }
     for (const id of this.order.get(windowId) ?? []) this.forgetTab(id);
     this.order.delete(windowId);
     this.windows.delete(windowId);
@@ -316,6 +359,36 @@ export class TabStore {
     this.dirty.collapsed = true;
   }
 
+  renameWindow(windowId: number, name: string): void {
+    if (!this.windows.has(windowId)) return;
+    const trimmed = name.trim();
+    if (trimmed) this.windowNames.set(windowId, { name: trimmed, urls: this.urlsOf(windowId) });
+    else this.windowNames.delete(windowId);
+  }
+
+  setAllWindowsCollapsed(collapsed: boolean): void {
+    for (const id of this.windows.keys()) {
+      if (!this.isIncluded(id)) continue;
+      if (collapsed) this.collapsedWindows.add(id);
+      else this.collapsedWindows.delete(id);
+    }
+    this.dirty.collapsed = true;
+  }
+
+  /**
+   * What to persist: live names with their windows' current URLs (kept from before when a window
+   * is momentarily empty, e.g. while closing), plus names of windows closed this session.
+   */
+  windowNamesForStorage(): WindowName[] {
+    const live: WindowName[] = [];
+    for (const [windowId, entry] of this.windowNames) {
+      const urls = this.urlsOf(windowId);
+      if (urls.length) entry.urls = urls;
+      live.push({ windowId, name: entry.name, urls: entry.urls });
+    }
+    return [...live, ...this.closedNames];
+  }
+
   toggleRailPin(tabId: number): void {
     const i = this.railPins.indexOf(tabId);
     if (i !== -1) this.railPins.splice(i, 1);
@@ -346,6 +419,41 @@ export class TabStore {
     for (const id of this.order.get(windowId) ?? []) {
       const t = this.tabs.get(id);
       if (t) t.active = id === tabId;
+    }
+  }
+
+  private urlsOf(windowId: number): string[] {
+    return this.tabsOf(windowId)
+      .map((t) => t.url || t.pendingUrl || '')
+      .filter(Boolean);
+  }
+
+  /**
+   * Re-attach persisted names to live windows by tab-URL overlap (at least half), best matches
+   * first, preferring the same window id on ties (service worker restart). Unmatched names drop.
+   */
+  private matchWindowNames(saved: WindowName[]): void {
+    this.windowNames.clear();
+    this.closedNames = [];
+    const live = [...this.windows.keys()]
+      .filter((id) => this.isIncluded(id))
+      .map((id) => ({ id, urls: this.urlsOf(id) }));
+    const pairs = saved.flatMap((s, si) =>
+      live.map((w) => ({
+        si,
+        id: w.id,
+        score: urlOverlap(s.urls, w.urls),
+        same: s.windowId === w.id,
+      })),
+    );
+    pairs.sort((a, b) => b.score - a.score || Number(b.same) - Number(a.same));
+    const usedSaved = new Set<number>();
+    for (const p of pairs) {
+      if (p.score < 0.5) break;
+      if (usedSaved.has(p.si) || this.windowNames.has(p.id)) continue;
+      usedSaved.add(p.si);
+      const s = saved[p.si]!;
+      this.windowNames.set(p.id, { name: s.name, urls: this.urlsOf(p.id) });
     }
   }
 

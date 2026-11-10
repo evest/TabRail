@@ -10,35 +10,17 @@ Status: **next** = agreed, build soon · **idea** = worth doing, not decided · 
 
 ## Next
 
-### Right-click menu on tabs and window headers
-
-A small custom menu (HTML in the sidebar, not `chrome.contextMenus`, so it works unchanged in
-WebView2 for Phase B).
-
-- **Minimize window** — shown only when the window isn't minimized already. Complements the
-  click-the-current-tab gesture, which is easy to miss.
-- **Restore / bring to front** — for a minimized window.
-- **Pin to top** / **Unpin** for a tab (same as the hover pin button).
-- Later candidates: close tab, close other tabs in window, move tab to new window, mute/unmute,
-  reload, copy URL, discard (sleep) tab.
-
-Protocol: new `FromUi` commands (`minimizeWindow`, …); the service worker executes
-them. Keyboard: the context-menu key / Shift+F10 should open it for the selected row.
-
----
-
-## Done
-
-- **Pinned tabs** (0.4.0): hover pin button on any tab row; Pinned section above Recent, leading
-  pin unpins. Tabs only, not windows. Pins are kept in `chrome.storage.local` with their URL and
-  re-matched by URL after a browser restart. Pinned tabs are left out of Recent.
-- **Duplicate tabs** (0.4.0): count badge on tabs whose URL (ignoring `#fragment`) is open more
-  than once; duplicates of the selected tab (current tab, or the filter selection) are highlighted.
-- **Recent restyle** (0.3.0): labelled card with "time since used".
+Nothing agreed right now; pick from Ideas.
 
 ---
 
 ## Ideas
+
+### Right-click menu, more actions
+
+The menu exists (0.9.0). Candidates to add: close other tabs in window, move tab to new window,
+mute/unmute, reload, copy URL, discard (sleep) tab. Keyboard access currently works only for the
+selected filter result; extend it once the main list has a keyboard selection.
 
 ### Recent strip
 
@@ -51,25 +33,17 @@ them. Keyboard: the context-menu key / Shift+F10 should open it for the selected
 - Arrow-key navigation in the main list, not just in filter results.
 - Global shortcut to jump straight to the previous tab (Alt+Tab-style toggle), with no sidebar
   interaction.
-- Filter syntax: `w:2` (window), `is:audible`, `is:sleeping`, `is:pinned`.
-
-### Window management
-
-- Rename windows (a sidebar-only name shown in the header instead of the active tab's title).
-  Chrome's own window names are not exposed to extensions.
-- Collapse all / expand all.
-- Show minimized windows grouped at the bottom, or optionally hide them.
+- Filter keywords: `is:audible`, `is:sleeping`, `is:pinned`, `is:dup`.
 
 ### Tab actions
 
-- Bulk close: duplicates, all tabs from a host, all sleeping tabs.
-- Close all duplicates of a tab (keep the selected one).
+- Bulk close: all duplicates everywhere, all tabs from a host, all sleeping tabs.
 - Drag and drop to reorder or move tabs between windows (out of scope for v1).
 
-### Appearance
+### Settings panel
 
-- Settings panel (in the sidebar, stored in `chrome.storage.local`): density, font size, recent
-  slot count, theme override.
+The gear panel exists (0.5.0; layout, minimized and pinned options since 0.10.0). Candidates: density, font size, Recent slot count,
+theme override.
 
 ### Phase B
 
@@ -83,3 +57,29 @@ them. Keyboard: the context-menu key / Shift+F10 should open it for the selected
 - Optional `sortMode: 'mru-lazy'` for the main list (see CLAUDE.md "Open decision").
 - Saved sessions / restore a closed window (overlaps with Chrome's own history).
 - Multiple profiles (one sidebar per profile, or a combined view in Phase B).
+- Show a tab's window (name or position) in a tooltip in Recent, Pinned and filter results, now
+  that the color markers are gone.
+
+---
+
+## Done
+
+- **Windows** (0.10.0): sidebar-only window names (right-click a header or tab → Name window…),
+  re-matched by tab URLs after a restart (not yet tested across a real restart); Collapse all /
+  Expand all in the header menu; minimized windows kept in place, moved to the bottom, or hidden;
+  a flat list layout with no window headers or groups, sortable by window/tab order or by name.
+- **Right-click menu** (0.9.0): on tabs: Pin/Unpin, Close duplicate(s), Minimize/Restore window,
+  Close tab. On window headers: Minimize/Restore window. Shift+F10 or the menu key opens it for
+  the selected filter result.
+- **Window markers removed** (0.8.0): per-window colors were noise with many windows open.
+- **Current tab at the top of Recent** (0.7.0), shown as "now" with the accent bar.
+- **Extension icon** (0.6.0): "Focus row", also used as the sidebar page icon (0.7.0).
+- **Settings panel** (0.5.0): gear next to the filter; "Also show pinned tabs in the window list"
+  (off by default).
+- **Pinned tabs** (0.4.0): hover pin button on any tab row; Pinned section above Recent, leading
+  pin unpins. Tabs only, not windows. Kept in `chrome.storage.local` with their URL and re-matched
+  by URL after a browser restart (not yet tested across a real restart). Left out of Recent.
+- **Duplicate tabs** (0.4.0): count badge on tabs whose URL (ignoring `#fragment`) is open more
+  than once; duplicates of the selected tab are highlighted.
+- **Recent restyle** (0.3.0): labelled card with "time since used".
+- **Verified on Windows**: the global Ctrl+Shift+1 shortcut fires while Chrome is not focused.

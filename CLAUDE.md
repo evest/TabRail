@@ -97,6 +97,7 @@ export interface WindowNode {
   minimized: boolean;
   sleeping: boolean; // all tabs sleeping
   collapsed: boolean; // sidebar collapse state, persisted by the service worker
+  name?: string; // sidebar-only window name, shown instead of the active tab's title
   tabs: TabNode[];
   groups: GroupNode[];
 }
@@ -107,7 +108,14 @@ export interface Snapshot {
   pinned: number[]; // tab ids in the sidebar's Pinned section (not Chrome tab pinning), in pin order
   recent: number[]; // tab ids, most recent first: the current tab first, excluding pinned tabs
   favicons: Record<string, string>; // favicon key (host) -> data: URL, only keys used in this snapshot
-  settings: { recentSlots: number; showPinnedInList: boolean }; // persisted in chrome.storage.local
+  settings: Settings; // persisted in chrome.storage.local
+}
+export interface Settings {
+  recentSlots: number;
+  showPinnedInList: boolean;
+  minimizedWindows: "inline" | "bottom" | "hidden";
+  layout: "windows" | "flat"; // flat: one list of tabs, no window headers or groups
+  flatSort: "tabOrder" | "title"; // flat layout only
 }
 
 export type ToUi =
@@ -120,6 +128,11 @@ export type FromUi =
   // header minimizes its window (taskbar behavior), unless the click only moved focus from that
   // window into the sidebar (`focusing`); then nothing happens and the next click minimizes
   | { type: "closeTab"; tabId: number }
+  | { type: "closeDuplicates"; tabId: number } // close other tabs with the same URL, keep this one
+  | { type: "minimizeWindow"; windowId: number }
+  | { type: "focusWindow"; windowId: number } // bring to front, restoring if minimized
+  | { type: "renameWindow"; windowId: number; name: string } // empty name clears it
+  | { type: "setAllWindowsCollapsed"; collapsed: boolean }
   | { type: "toggleWindowCollapsed"; windowId: number }
   | { type: "toggleGroupCollapsed"; groupId: number }
   | { type: "toggleRailPin"; tabId: number } // add/remove a tab in the Pinned section
@@ -143,7 +156,9 @@ export type FromUi =
 - Aim for as many rows as possible on screen: row height about 22 px, 12–13 px system font, 16 px favicon, single-line ellipsized title, and minimal padding. Target width is 260–340 px, and the layout must stay usable at 220 px.
 - **A window with one tab renders as a single row**: a plain tab row with no header and no indentation.
 - **A window with more than one tab renders as a tree**: a compact header (active tab's title, tab count, collapse chevron) followed by indented tab rows. Tab groups form a collapsible sub-level with a colored left bar.
-- Window collapse state persists in `chrome.storage.local`, keyed by window ID.
+- Window collapse state persists in `chrome.storage.local`, keyed by window ID. Collapse all / Expand all are in the window header's right-click menu.
+- **Window names** (right-click → Name window…) are sidebar-only and replace the active tab's title in the header; a named single-tab window gets a header. Names persist in `chrome.storage.local` with the window's tab URLs and are re-matched after a restart by URL overlap (at least half). Names of windows closed during the session are kept (capped) so quitting Chrome doesn't lose them.
+- **Settings panel** (gear next to the filter): list layout (windows and groups, or a flat list of tabs with no headers or groups, sortable by window/tab order or by name), minimized windows (keep in place, move to the bottom, or hide), and whether pinned tabs also appear in the list.
 - The host or URL appears only in a tooltip, not as an extra line.
 - Light and dark modes follow the system theme.
 - No per-window color markers: with many windows open they were noise (removed in 0.8.0).
@@ -177,13 +192,14 @@ export type FromUi =
 
 - Click activates the tab and brings its window to the front (`chrome.tabs.update` plus `chrome.windows.update({focused: true})`).
 - Middle-click closes the tab. A close button appears on hover.
+- **Right-click menu** (drawn in the page, not `chrome.contextMenus`, so it works in WebView2): on tabs, Pin/Unpin, Close duplicate(s), Minimize/Restore window and Close tab; on window headers, Minimize/Restore window. Shift+F10 or the menu key opens it for the selected filter result.
 
 ### Keyboard shortcut to focus the sidebar
 
 - **Phase A:** use a `commands` entry with `"global": true`. Global shortcuts are limited to Ctrl+Shift+0–9, so default to Ctrl+Shift+1.
   - If the sidebar window exists, focus it and send `focusFilter`.
   - Otherwise, create it.
-  - _Verify on Windows that global commands fire while Chrome is not focused._
+  - _Verified on Windows: the global command fires while Chrome is not focused._
 - **Phase B:** the host registers its own hotkey with `RegisterHotKey`, and the Chrome command is ignored.
 
 ### Sidebar window (Phase A)
@@ -193,7 +209,7 @@ export type FromUi =
 
 ### Out of scope for v1
 
-Drag and drop, saved sessions, multiple profiles, sync, and context menus. Ideas and planned features beyond v1 live in `docs/WISHLIST.md`.
+Drag and drop, saved sessions, multiple profiles and sync. Ideas and planned features beyond v1 live in `docs/WISHLIST.md`.
 
 ---
 
