@@ -40,6 +40,13 @@ export const ChevronIcon = ({ open }: { open: boolean }) => (
   </svg>
 );
 
+/** Sidebar "Pinned" section pin (filled, unlike Chrome's own pinned-tab glyph). */
+export const RailPinIcon = ({ filled }: { filled: boolean }) => (
+  <svg {...base} class="ico ico-railpin" fill={filled ? 'currentColor' : 'none'}>
+    <path d="M4 1.5h4M5 1.5v3L3 7h6L7 4.5v-3M6 7v3.5" />
+  </svg>
+);
+
 export const PinIcon = () => (
   <svg {...base} class="ico ico-pin">
     <path d="M7.5 1.5l3 3-2 1-2 2 .5 2.5L2.5 5.5 5 6l2-2z M4.5 7.5L1.5 10.5" />

@@ -18,6 +18,9 @@
   --head-focused-fg: #fff;
   --current-tab: rgba(10, 100, 220, 0.26);
   --fg-dim-head: #5c5c62;
+  --recent-bg: #fff;
+  --dup: #c26a00;
+  --dup-tint: rgba(217, 119, 6, 0.16);
 
   --m1: #3b82f6;
   --m2: #e0623a;
@@ -57,6 +60,9 @@
     --head-focused-fg: #fff;
     --current-tab: rgba(90, 160, 255, 0.34);
     --fg-dim-head: #b4b4ba;
+    --recent-bg: #26262a;
+    --dup: #f0a640;
+    --dup-tint: rgba(240, 166, 64, 0.18);
 
     --g-grey: #bdc1c6;
     --g-blue: #8ab4f8;
@@ -126,9 +132,87 @@ button {
   border-color: var(--accent);
 }
 
-.recent {
-  height: calc(var(--slots) * var(--row-h));
+.section-label {
+  padding: 1px 8px 2px;
+  color: var(--fg-dim);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: default;
+}
+
+/* Cards, so Pinned / Recent read as shortcut lists rather than more tabs. */
+.card {
+  margin: 0 4px 6px;
   overflow: hidden;
+  background: var(--recent-bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.card .row {
+  padding-left: 5px;
+}
+.recent {
+  height: calc(var(--slots) * var(--row-h) + 2px);
+}
+
+/* leading pin in the Pinned section: always visible, click to unpin */
+.lead-pin {
+  flex: none;
+  width: 14px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  margin-right: -2px;
+  color: var(--accent);
+  border-radius: 3px;
+}
+.lead-pin .ico {
+  color: var(--accent);
+}
+.lead-pin:hover {
+  background: var(--hover);
+}
+
+/* duplicate tabs: count badge, and a tint on duplicates of the selected tab */
+.dup {
+  flex: none;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--dup-tint);
+  color: var(--dup);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.tab.dup-hl {
+  background: var(--dup-tint);
+  box-shadow: inset 0 0 0 1px var(--dup);
+}
+.tab.dup-hl .dup {
+  background: var(--dup);
+  color: var(--bg);
+}
+.recent .title {
+  color: var(--fg-dim-head);
+}
+.recent .row:hover .title {
+  color: var(--fg);
+}
+
+.aside {
+  flex: none;
+  color: var(--fg-dim);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.row:hover .aside {
+  display: none;
 }
 
 /* ---- list ------------------------------------------------------------------- */
@@ -254,7 +338,7 @@ button {
   color: var(--fg);
 }
 
-.close {
+.row-btn {
   flex: none;
   display: none;
   width: 16px;
@@ -262,14 +346,17 @@ button {
   border-radius: 3px;
   place-items: center;
 }
-.close .ico {
+.row-btn .ico {
   color: var(--fg);
 }
-.row:hover .close {
+.row:hover .row-btn {
   display: grid;
 }
-.close:hover {
+.row-btn:hover {
   background: var(--hover);
+}
+.pin-btn .ico {
+  color: var(--fg-dim);
 }
 
 .marker {

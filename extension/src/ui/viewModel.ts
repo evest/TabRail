@@ -77,3 +77,38 @@ export function tabIndex(s: Snapshot): Map<number, TabNode> {
   for (const w of s.windows) for (const t of w.tabs) m.set(t.id, t);
   return m;
 }
+
+/** Compact "time since" for the Recent strip: now, 5m, 3h, 2d. */
+export function timeAgo(then: number, now: number): string {
+  const min = Math.floor((now - then) / 60_000);
+  if (min < 1) return 'now';
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
+}
+
+/**
+ * Identity for duplicate detection: the URL without its #fragment. Blank and new-tab pages never
+ * count as duplicates (having several open is normal).
+ */
+export function dupKey(url: string): string | null {
+  const u = url.split('#')[0]!;
+  if (
+    !u ||
+    /^(about:blank|about:newtab|chrome:\/\/newtab|chrome:\/\/new-tab-page|edge:\/\/newtab)/.test(u)
+  )
+    return null;
+  return u;
+}
+
+/** dupKey -> number of open tabs with that key, only for keys open more than once. */
+export function duplicateCounts(s: Snapshot): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const w of s.windows)
+    for (const t of w.tabs) {
+      const k = dupKey(t.url);
+      if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+  for (const [k, n] of counts) if (n < 2) counts.delete(k);
+  return counts;
+}

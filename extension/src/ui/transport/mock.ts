@@ -123,6 +123,9 @@ export class MockTransport implements Transport {
       case 'toggleGroupCollapsed':
         s.toggleGroupCollapsed(msg.groupId);
         break;
+      case 'toggleRailPin':
+        s.toggleRailPin(msg.tabId);
+        break;
       case 'focusLastWindow':
         console.info('[mock] focusLastWindow');
         return;
@@ -188,10 +191,12 @@ export class MockTransport implements Transport {
       this.tab(3, 1, 9),
       this.tab(3, 2, 12, { status: 'loading' }),
       this.tab(3, 3, 15, { mutedInfo: { muted: true }, audible: true }),
+      this.tab(3, 4, 0), // duplicate of window 1's active tab
     ];
     const w4: RawTab[] = [
       this.tab(4, 0, 10, { active: true, discarded: true }),
       this.tab(4, 1, 17, { discarded: true }),
+      this.tab(4, 2, 1, { discarded: true }), // duplicate
     ];
     const w5: RawTab[] = [this.tab(5, 0, 16, { active: true, audible: true })];
     const windows: RawWindow[] = [
@@ -206,7 +211,8 @@ export class MockTransport implements Transport {
       { id: 10, windowId: 1, title: 'TabRail', color: 'blue', collapsed: false },
       { id: 11, windowId: 1, title: 'Phase B', color: 'purple', collapsed: false },
     ];
-    this.store.init({ windows, groups, focusedWindowId: 1 });
+    const pins = [w3[1]!, w2[0]!].map((t) => ({ tabId: t.id!, url: t.url! }));
+    this.store.init({ windows, groups, focusedWindowId: 1, railPins: pins });
   }
 
   private churn(): void {

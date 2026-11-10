@@ -53,7 +53,12 @@ export interface Snapshot {
   focusedWindowId: number | null;
   /** Windows in creation order, tabs in tab-strip order. */
   windows: WindowNode[];
-  /** Tab ids, most recent first, excluding the globally active tab. At most settings.recentSlots. */
+  /** Tab ids pinned to the sidebar's Pinned section, in pin order (not Chrome's tab pinning). */
+  pinned: number[];
+  /**
+   * Tab ids, most recent first, excluding the globally active tab and pinned tabs.
+   * At most settings.recentSlots.
+   */
   recent: number[];
   /** favicon key -> data: URL. Only keys referenced by tabs in this snapshot. */
   favicons: Record<string, string>;
@@ -80,6 +85,8 @@ export type FromUi =
   | { type: 'closeTab'; tabId: number }
   | { type: 'toggleWindowCollapsed'; windowId: number }
   | { type: 'toggleGroupCollapsed'; groupId: number }
+  /** Add the tab to, or remove it from, the sidebar's Pinned section. */
+  | { type: 'toggleRailPin'; tabId: number }
   /** Second Esc in the filter: hand focus back to the last real Chrome window. */
   | { type: 'focusLastWindow' };
 

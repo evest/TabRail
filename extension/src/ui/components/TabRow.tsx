@@ -1,7 +1,7 @@
 import { memo } from 'preact/compat';
 import type { GroupNode, TabNode } from '../../shared/protocol';
 import type { Marker } from '../viewModel';
-import { CloseIcon, GlobeIcon, PinIcon, SleepIcon, SpeakerIcon } from './Icons';
+import { CloseIcon, GlobeIcon, PinIcon, RailPinIcon, SleepIcon, SpeakerIcon } from './Icons';
 import { WindowMarker } from './WindowMarker';
 
 export interface TabRowProps {
@@ -12,6 +12,17 @@ export interface TabRowProps {
   marker?: Marker;
   globalActive: boolean;
   selected?: boolean;
+  /** Dim right-aligned note (Recent strip: time since last use); yields to the close button on hover. */
+  aside?: string;
+  /** Number of open tabs with the same URL (badge shown when >= 2). */
+  dupCount?: number;
+  /** A duplicate of the currently selected tab. */
+  dupHighlight?: boolean;
+  /** Row lives in the Pinned section: shows a leading pin that unpins. */
+  pinnedEntry?: boolean;
+  /** Tab is in the Pinned section (hover button says "Unpin"). */
+  railPinned?: boolean;
+  onTogglePin?: (tabId: number) => void;
   onActivate: (tabId: number) => void;
   onClose: (tabId: number) => void;
 }
@@ -27,6 +38,7 @@ function TabRowImpl(p: TabRowProps) {
     tab.sleeping && 'sleeping',
     p.selected && 'selected',
     p.group && 'in-group',
+    p.dupHighlight && 'dup-hl',
   ]
     .filter(Boolean)
     .join(' ');
@@ -47,6 +59,19 @@ function TabRowImpl(p: TabRowProps) {
         }
       }}
     >
+      {p.pinnedEntry && p.onTogglePin && (
+        <button
+          class="lead-pin"
+          title="Unpin"
+          tabIndex={-1}
+          onClick={(e) => {
+            e.stopPropagation();
+            p.onTogglePin!(tab.id);
+          }}
+        >
+          <RailPinIcon filled />
+        </button>
+      )}
       {p.marker && <WindowMarker marker={p.marker} />}
       <span class={`fav${tab.loading ? ' loading' : ''}`}>
         {p.favicon ? (
@@ -59,8 +84,27 @@ function TabRowImpl(p: TabRowProps) {
       {tab.pinned && <PinIcon />}
       {(tab.audible || tab.muted) && <SpeakerIcon muted={tab.muted} />}
       {tab.sleeping && <SleepIcon />}
+      {p.dupCount != null && p.dupCount > 1 && (
+        <span class="dup" title={`Open in ${p.dupCount} tabs`}>
+          {p.dupCount}
+        </span>
+      )}
+      {p.aside && <span class="aside">{p.aside}</span>}
+      {!p.pinnedEntry && p.onTogglePin && (
+        <button
+          class="row-btn pin-btn"
+          title={p.railPinned ? 'Unpin' : 'Pin to top'}
+          tabIndex={-1}
+          onClick={(e) => {
+            e.stopPropagation();
+            p.onTogglePin!(tab.id);
+          }}
+        >
+          <RailPinIcon filled={!!p.railPinned} />
+        </button>
+      )}
       <button
-        class="close"
+        class="row-btn close"
         title="Close tab"
         tabIndex={-1}
         onClick={(e) => {
@@ -94,6 +138,12 @@ function sameProps(a: TabRowProps, b: TabRowProps): boolean {
     a.depth === b.depth &&
     a.globalActive === b.globalActive &&
     a.selected === b.selected &&
+    a.aside === b.aside &&
+    a.dupCount === b.dupCount &&
+    a.dupHighlight === b.dupHighlight &&
+    a.pinnedEntry === b.pinnedEntry &&
+    a.railPinned === b.railPinned &&
+    a.onTogglePin === b.onTogglePin &&
     a.group?.color === b.group?.color &&
     a.marker?.n === b.marker?.n &&
     a.onActivate === b.onActivate &&

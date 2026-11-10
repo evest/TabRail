@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TabStore } from '../src/background/tabStore';
 import { buildSnapshot } from '../src/background/snapshot';
-import { buildMainList } from '../src/ui/viewModel';
+import { buildMainList, timeAgo } from '../src/ui/viewModel';
 import { DEFAULT_SETTINGS } from '../src/shared/protocol';
 import { SIDEBAR_URL, tab, win } from './helpers';
 
@@ -53,5 +53,16 @@ describe('main list layout', () => {
     const blocks = buildMainList(buildSnapshot(setup(), 1, DEFAULT_SETTINGS));
     const head = blocks[1]!.rows[0]!;
     expect(head.kind === 'window' && head.title).toBe('Tab 21');
+  });
+});
+
+describe('timeAgo', () => {
+  it('formats compact durations', () => {
+    const m = 60_000;
+    expect(timeAgo(0, 30_000)).toBe('now');
+    expect(timeAgo(0, 5 * m)).toBe('5m');
+    expect(timeAgo(0, 59 * m)).toBe('59m');
+    expect(timeAgo(0, 125 * m)).toBe('2h');
+    expect(timeAgo(0, 50 * 60 * m)).toBe('2d');
   });
 });

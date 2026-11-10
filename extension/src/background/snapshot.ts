@@ -63,14 +63,16 @@ export function buildSnapshot(
   }
 
   const globalActive = store.globalActiveTabId();
+  const included = new Set(windows.flatMap((w) => w.tabs.map((t) => t.id)));
+  const pinned = store.railPins.filter((id) => included.has(id));
   const recent = windows
     .flatMap((w) => w.tabs)
-    .filter((t) => t.id !== globalActive)
+    .filter((t) => t.id !== globalActive && !pinned.includes(t.id))
     .sort((a, b) => b.lastAccessed - a.lastAccessed || a.id - b.id)
     .slice(0, settings.recentSlots)
     .map((t) => t.id);
 
-  return { seq, focusedWindowId, windows, recent, favicons: favs, settings };
+  return { seq, focusedWindowId, windows, pinned, recent, favicons: favs, settings };
 }
 
 function toTabNode(

@@ -24,6 +24,7 @@ function snap(tabs: TabNode[]): Snapshot {
   return {
     seq: 1,
     focusedWindowId: 1,
+    pinned: [],
     recent: [],
     favicons: {},
     settings: { recentSlots: 5 },

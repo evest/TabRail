@@ -41,6 +41,7 @@ Every Phase A decision must keep Phase B cheap. If a feature forces a trade-off 
 - Use a plain multi-entry Vite build (`background.ts`, `sidebar.html`) that outputs to `extension/dist`, which is loaded unpacked. Don't add a CRX bundling plugin.
 - A second build target, `ui-standalone`, outputs the same UI with relative asset paths and no extension assumptions. Phase B's WebView2 loads this through virtual host mapping.
 - Scripts: `dev` (watch build), `build`, `test`, `lint`.
+- **Versioning:** bump `version` in both `public/manifest.json` and `package.json` (kept identical) with every change: minor for new features or behavior changes, patch for fixes. The version on `chrome://extensions` shows which build is loaded.
 
 ---
 
@@ -103,7 +104,8 @@ export interface Snapshot {
   seq: number;
   focusedWindowId: number | null;
   windows: WindowNode[];
-  recent: number[]; // tab ids, most recent first, excluding the globally active tab
+  pinned: number[]; // tab ids in the sidebar's Pinned section (not Chrome tab pinning), in pin order
+  recent: number[]; // tab ids, most recent first, excluding the globally active tab and pinned tabs
   favicons: Record<string, string>; // favicon key (host) -> data: URL, only keys used in this snapshot
   settings: { recentSlots: number };
 }
@@ -120,6 +122,7 @@ export type FromUi =
   | { type: "closeTab"; tabId: number }
   | { type: "toggleWindowCollapsed"; windowId: number }
   | { type: "toggleGroupCollapsed"; groupId: number }
+  | { type: "toggleRailPin"; tabId: number } // add/remove a tab in the Pinned section
   | { type: "focusLastWindow" }; // second Esc in the filter
 ```
 
@@ -149,6 +152,11 @@ export type FromUi =
 - Each window's active tab is shown in semibold. The globally active tab (the active tab in the focused window) also gets an accent bar.
 - **Sleeping** tabs are dimmed and show a small sleep glyph. A window that is fully asleep or minimized gets a dimmed header with the same glyph.
 - Audible and muted tabs show a small speaker glyph.
+
+### Pinned tabs and duplicates
+
+- A **Pinned** section above Recent lists tabs pinned with the hover pin button; its leading pin unpins. Tabs only, not windows. Pins persist in `chrome.storage.local` as `{tabId, url}` and are re-matched by URL after a browser restart. The section only grows or shrinks when pins change.
+- **Duplicate tabs** (same URL ignoring `#fragment`; new-tab pages excluded) get a count badge. Duplicates of the selected tab (the current tab, or the filter selection) are highlighted.
 
 ### Recency without layout shift
 
@@ -183,7 +191,7 @@ export type FromUi =
 
 ### Out of scope for v1
 
-Drag and drop, saved sessions, multiple profiles, sync, and context menus.
+Drag and drop, saved sessions, multiple profiles, sync, and context menus. Ideas and planned features beyond v1 live in `docs/WISHLIST.md`.
 
 ---
 

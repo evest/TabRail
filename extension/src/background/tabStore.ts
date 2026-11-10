@@ -15,6 +15,14 @@ export interface StoreInit {
   mru?: Record<number, number>;
   collapsedWindows?: number[];
   collapsedGroups?: number[];
+  /** Persisted rail pins; re-matched to live tabs (tab ids don't survive browser restarts). */
+  railPins?: RailPin[];
+}
+
+/** A tab pinned to the sidebar's Pinned section (not Chrome's own tab pinning). */
+export interface RailPin {
+  tabId: number;
+  url: string;
 }
 
 /**
@@ -33,6 +41,8 @@ export class TabStore {
   readonly collapsedGroups = new Set<number>();
   sidebarWindowId: number | null = null;
   lastFocusedWindowId: number | null = null;
+  /** Tab ids pinned to the sidebar's Pinned section, in pin order. */
+  railPins: number[] = [];
   /**
    * Raw onFocusChanged history (including WINDOW_ID_NONE and the sidebar), newest last. Used to
    * tell which window owned the foreground right before the sidebar was clicked.
@@ -40,7 +50,7 @@ export class TabStore {
   private focusHistory: { id: number; at: number }[] = [];
 
   /** Set when state that must be persisted changed; cleared by the owner after saving. */
-  dirty = { mru: false, collapsed: false };
+  dirty = { mru: false, collapsed: false, pins: false };
 
   constructor(private readonly sidebarUrl: string) {}
 
@@ -77,7 +87,22 @@ export class TabStore {
     const prunedCollapsed =
       this.collapsedWindows.size !== (data.collapsedWindows?.length ?? 0) ||
       this.collapsedGroups.size !== (data.collapsedGroups?.length ?? 0);
-    this.dirty = { mru: false, collapsed: prunedCollapsed };
+
+    // Rail pins: same tab id and URL (service worker restart), else the first unclaimed tab with
+    // the same URL (browser restart, where tab ids are reassigned). Unmatched pins are dropped.
+    this.railPins = [];
+    let prunedPins = false;
+    for (const pin of data.railPins ?? []) {
+      const same = this.tabs.get(pin.tabId);
+      const match =
+        same?.url === pin.url && !this.railPins.includes(pin.tabId)
+          ? pin.tabId
+          : [...this.tabs.values()].find((t) => t.url === pin.url && !this.railPins.includes(t.id!))
+              ?.id;
+      if (match != null) this.railPins.push(match);
+      if (match !== pin.tabId) prunedPins = true;
+    }
+    this.dirty = { mru: false, collapsed: prunedCollapsed, pins: prunedPins };
 
     const focused =
       data.windows.find((w) => w.focused && w.id != null && this.isIncluded(w.id))?.id ??
@@ -214,6 +239,7 @@ export class TabStore {
       this.tabCreated(tab);
       return;
     }
+    if (prev.url !== tab.url && this.railPins.includes(tab.id)) this.dirty.pins = true;
     // Keep our own active flag; onActivated is authoritative.
     this.tabs.set(tab.id, { ...tab, active: prev.active });
     this.detectSidebar(tab);
@@ -264,6 +290,11 @@ export class TabStore {
     this.tabs.set(added.id, { ...added });
     if (!order) this.tabCreated(added);
     if (mruAt != null) this.touch(added.id, mruAt);
+    const pin = this.railPins.indexOf(removedTabId);
+    if (pin !== -1) {
+      this.railPins[pin] = added.id;
+      this.dirty.pins = true;
+    }
   }
 
   // ---- groups --------------------------------------------------------------
@@ -283,6 +314,19 @@ export class TabStore {
     if (!this.windows.has(windowId)) return;
     if (!this.collapsedWindows.delete(windowId)) this.collapsedWindows.add(windowId);
     this.dirty.collapsed = true;
+  }
+
+  toggleRailPin(tabId: number): void {
+    const i = this.railPins.indexOf(tabId);
+    if (i !== -1) this.railPins.splice(i, 1);
+    else if (this.tabs.has(tabId)) this.railPins.push(tabId);
+    else return;
+    this.dirty.pins = true;
+  }
+
+  /** What to persist: ids plus URLs for re-matching after a browser restart. */
+  railPinsForStorage(): RailPin[] {
+    return this.railPins.map((tabId) => ({ tabId, url: this.tabs.get(tabId)?.url ?? '' }));
   }
 
   toggleGroupCollapsed(groupId: number): void {
@@ -311,6 +355,11 @@ export class TabStore {
     if (tabId in this.mru) {
       delete this.mru[tabId];
       this.dirty.mru = true;
+    }
+    const pin = this.railPins.indexOf(tabId);
+    if (pin !== -1) {
+      this.railPins.splice(pin, 1);
+      this.dirty.pins = true;
     }
   }
 

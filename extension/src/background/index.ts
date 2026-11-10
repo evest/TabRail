@@ -1,9 +1,10 @@
 // Service worker entry. Owns all state; rebuilds it from Chrome on every start (hard rule 4).
-// Only the MRU history survives restarts, in chrome.storage.session.
+// Only the MRU history survives restarts, in chrome.storage.session; sidebar-only UI state
+// (collapse, rail pins) lives in chrome.storage.local.
 
 import { DEFAULT_SETTINGS, PORT_NAME } from '../shared/protocol';
 import type { FromUi, Settings, ToUi } from '../shared/protocol';
-import { TabStore } from './tabStore';
+import { TabStore, type RailPin } from './tabStore';
 import { buildSnapshot } from './snapshot';
 import { FaviconCache, extensionFaviconFetcher } from './favicons';
 import { SnapshotScheduler } from './scheduler';
@@ -48,6 +49,10 @@ async function persist(): Promise<void> {
       collapsed: { windows: [...store.collapsedWindows], groups: [...store.collapsedGroups] },
     });
   }
+  if (store.dirty.pins) {
+    store.dirty.pins = false;
+    await chrome.storage.local.set({ railPins: store.railPinsForStorage() });
+  }
 }
 
 /**
@@ -67,7 +72,7 @@ async function init(): Promise<void> {
     chrome.tabGroups.query({}),
     chrome.windows.getLastFocused({ windowTypes: ['normal'] }).catch(() => undefined),
     chrome.storage.session.get('mru'),
-    chrome.storage.local.get(['collapsed', 'settings']),
+    chrome.storage.local.get(['collapsed', 'settings', 'railPins']),
   ]);
   const collapsed = (local.collapsed ?? {}) as { windows?: number[]; groups?: number[] };
   settings = { ...DEFAULT_SETTINGS, ...((local.settings as Partial<Settings>) ?? {}) };
@@ -78,6 +83,7 @@ async function init(): Promise<void> {
     mru: (session.mru as Record<number, number>) ?? {},
     collapsedWindows: collapsed.windows,
     collapsedGroups: collapsed.groups,
+    railPins: (local.railPins as RailPin[] | undefined) ?? [],
   });
   for (const t of store.tabs.values()) ensureFavicon(t);
   scheduler.schedule();
@@ -248,6 +254,10 @@ async function handle(msg: FromUi, sink: UiSink): Promise<void> {
       return;
     case 'toggleGroupCollapsed':
       store.toggleGroupCollapsed(msg.groupId);
+      scheduler.schedule();
+      return;
+    case 'toggleRailPin':
+      store.toggleRailPin(msg.tabId);
       scheduler.schedule();
       return;
     case 'focusLastWindow':
