@@ -65,10 +65,16 @@ export function buildSnapshot(
   const globalActive = store.globalActiveTabId();
   const included = new Set(windows.flatMap((w) => w.tabs.map((t) => t.id)));
   const pinned = store.railPins.filter((id) => included.has(id));
+  // The current tab always leads, even before its MRU stamp lands (e.g. right after startup).
   const recent = windows
     .flatMap((w) => w.tabs)
-    .filter((t) => t.id !== globalActive && !pinned.includes(t.id))
-    .sort((a, b) => b.lastAccessed - a.lastAccessed || a.id - b.id)
+    .filter((t) => !pinned.includes(t.id))
+    .sort(
+      (a, b) =>
+        Number(b.id === globalActive) - Number(a.id === globalActive) ||
+        b.lastAccessed - a.lastAccessed ||
+        a.id - b.id,
+    )
     .slice(0, settings.recentSlots)
     .map((t) => t.id);
 

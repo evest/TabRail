@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_SETTINGS } from '../src/shared/protocol';
 import { filterTabs, scoreTab, tokenize } from '../src/ui/filter';
 import type { Snapshot, TabNode } from '../src/shared/protocol';
 
@@ -27,7 +28,7 @@ function snap(tabs: TabNode[]): Snapshot {
     pinned: [],
     recent: [],
     favicons: {},
-    settings: { recentSlots: 5 },
+    settings: { ...DEFAULT_SETTINGS, recentSlots: 5 },
     windows: [
       {
         id: 1,

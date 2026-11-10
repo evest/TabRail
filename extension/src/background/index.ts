@@ -260,6 +260,11 @@ async function handle(msg: FromUi, sink: UiSink): Promise<void> {
       store.toggleRailPin(msg.tabId);
       scheduler.schedule();
       return;
+    case 'updateSettings':
+      settings = { ...settings, ...msg.patch };
+      await chrome.storage.local.set({ settings });
+      scheduler.schedule();
+      return;
     case 'focusLastWindow':
       if (store.lastFocusedWindowId != null) {
         await chrome.windows.update(store.lastFocusedWindowId, { focused: true });

@@ -8,17 +8,18 @@ import {
   isGlobalActive,
   tabIndex,
   timeAgo,
-  windowMarkers,
 } from './viewModel';
 import { filterTabs } from './filter';
 import { TabRow } from './components/TabRow';
 import { GroupHeader, WindowHeader } from './components/Headers';
+import { GearIcon } from './components/Icons';
 import { FocusClickGuard, windowFocusSource } from './focusGuard';
 
 export function App({ transport }: { transport: Transport }) {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [query, setQuery] = useState('');
   const [sel, setSel] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // Clock for the Recent strip's "time since" labels; snapshots only arrive on tab events.
   const [now, setNow] = useState(() => Date.now());
   const input = useRef<HTMLInputElement>(null);
@@ -73,9 +74,12 @@ export function App({ transport }: { transport: Transport }) {
     [transport],
   );
 
-  const markers = useMemo(() => (snap ? windowMarkers(snap) : new Map()), [snap]);
   const byId = useMemo(() => (snap ? tabIndex(snap) : new Map()), [snap]);
-  const blocks = useMemo(() => (snap ? buildMainList(snap, markers) : []), [snap, markers]);
+  const blocks = useMemo(() => {
+    if (!snap) return [];
+    const hidden = new Set(snap.settings.showPinnedInList ? [] : snap.pinned);
+    return buildMainList(snap, hidden);
+  }, [snap]);
   const filtered = useMemo(() => (snap && query ? filterTabs(snap, query) : []), [snap, query]);
   const filtering = query.trim().length > 0;
   const selIndex = Math.min(sel, Math.max(filtered.length - 1, 0));
@@ -132,20 +136,47 @@ export function App({ transport }: { transport: Transport }) {
   return (
     <div class="app">
       <div class="top">
-        <input
-          ref={input}
-          class="filter"
-          type="search"
-          placeholder="Filter tabs"
-          spellcheck={false}
-          autocomplete="off"
-          value={query}
-          onInput={(e) => {
-            setQuery(e.currentTarget.value);
-            setSel(0);
-          }}
-          onKeyDown={onKeyDown}
-        />
+        <div class="filter-row">
+          <input
+            ref={input}
+            class="filter"
+            type="search"
+            placeholder="Filter tabs"
+            spellcheck={false}
+            autocomplete="off"
+            value={query}
+            onInput={(e) => {
+              setQuery(e.currentTarget.value);
+              setSel(0);
+            }}
+            onKeyDown={onKeyDown}
+          />
+          <button
+            class={`gear${settingsOpen ? ' open' : ''}`}
+            title="Settings"
+            aria-expanded={settingsOpen}
+            onClick={() => setSettingsOpen((o) => !o)}
+          >
+            <GearIcon />
+          </button>
+        </div>
+        {settingsOpen && snap && (
+          <div class="settings" role="dialog" aria-label="Settings">
+            <label>
+              <input
+                type="checkbox"
+                checked={snap.settings.showPinnedInList}
+                onChange={(e) =>
+                  transport.send({
+                    type: 'updateSettings',
+                    patch: { showPinnedInList: e.currentTarget.checked },
+                  })
+                }
+              />
+              Also show pinned tabs in the window list
+            </label>
+          </div>
+        )}
         {pinnedTabs.length > 0 && (
           <>
             <div class="section-label" title="Tabs you pinned here; click the pin to unpin">
@@ -157,7 +188,6 @@ export function App({ transport }: { transport: Transport }) {
                   key={tab.id}
                   {...common(tab)}
                   depth={0}
-                  marker={markers.get(tab.windowId)}
                   globalActive={isGlobalActive(tab, snap!)}
                   pinnedEntry
                 />
@@ -167,7 +197,7 @@ export function App({ transport }: { transport: Transport }) {
         )}
         <div
           class="section-label"
-          title="Tabs you used most recently, newest first (the current tab is not repeated here)"
+          title="Tabs you used most recently, newest first; the current tab is at the top"
         >
           Recent
         </div>
@@ -180,9 +210,8 @@ export function App({ transport }: { transport: Transport }) {
                 key={i}
                 {...common(tab)}
                 depth={0}
-                marker={markers.get(tab.windowId)}
-                globalActive={false}
-                aside={timeAgo(tab.lastAccessed, now)}
+                globalActive={isGlobalActive(tab, snap!)}
+                aside={isGlobalActive(tab, snap!) ? 'now' : timeAgo(tab.lastAccessed, now)}
               />
             ) : (
               <div key={i} class="row empty" />
@@ -202,7 +231,6 @@ export function App({ transport }: { transport: Transport }) {
                 key={tab.id}
                 {...common(tab)}
                 depth={0}
-                marker={markers.get(tab.windowId)}
                 globalActive={isGlobalActive(tab, snap!)}
                 selected={i === selIndex}
               />
@@ -216,7 +244,6 @@ export function App({ transport }: { transport: Transport }) {
                   <WindowHeader
                     key={r.key}
                     win={r.win}
-                    marker={r.marker}
                     title={r.title}
                     onToggle={toggleWindow}
                     onActivate={() => {
@@ -232,7 +259,6 @@ export function App({ transport }: { transport: Transport }) {
                     {...common(r.tab)}
                     depth={r.depth}
                     group={r.group}
-                    marker={r.marker}
                     globalActive={isGlobalActive(r.tab, snap!)}
                   />
                 ),

@@ -46,6 +46,8 @@ export interface WindowNode {
 
 export interface Settings {
   recentSlots: number;
+  /** Also list pinned tabs in the window list (default: only in the Pinned section). */
+  showPinnedInList: boolean;
 }
 
 export interface Snapshot {
@@ -56,7 +58,7 @@ export interface Snapshot {
   /** Tab ids pinned to the sidebar's Pinned section, in pin order (not Chrome's tab pinning). */
   pinned: number[];
   /**
-   * Tab ids, most recent first, excluding the globally active tab and pinned tabs.
+   * Tab ids, most recent first, the globally active (current) tab first, excluding pinned tabs.
    * At most settings.recentSlots.
    */
   recent: number[];
@@ -87,9 +89,11 @@ export type FromUi =
   | { type: 'toggleGroupCollapsed'; groupId: number }
   /** Add the tab to, or remove it from, the sidebar's Pinned section. */
   | { type: 'toggleRailPin'; tabId: number }
+  /** Change settings; the service worker persists them and sends a new snapshot. */
+  | { type: 'updateSettings'; patch: Partial<Settings> }
   /** Second Esc in the filter: hand focus back to the last real Chrome window. */
   | { type: 'focusLastWindow' };
 
 export const PORT_NAME = 'sidebar';
 export const NATIVE_HOST_NAME = 'no.tabrail.host';
-export const DEFAULT_SETTINGS: Settings = { recentSlots: 5 };
+export const DEFAULT_SETTINGS: Settings = { recentSlots: 5, showPinnedInList: false };

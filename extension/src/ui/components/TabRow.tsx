@@ -1,15 +1,12 @@
 import { memo } from 'preact/compat';
 import type { GroupNode, TabNode } from '../../shared/protocol';
-import type { Marker } from '../viewModel';
 import { CloseIcon, GlobeIcon, PinIcon, RailPinIcon, SleepIcon, SpeakerIcon } from './Icons';
-import { WindowMarker } from './WindowMarker';
 
 export interface TabRowProps {
   tab: TabNode;
   favicon?: string;
   depth: 0 | 1;
   group?: GroupNode;
-  marker?: Marker;
   globalActive: boolean;
   selected?: boolean;
   /** Dim right-aligned note (Recent strip: time since last use); yields to the close button on hover. */
@@ -72,7 +69,6 @@ function TabRowImpl(p: TabRowProps) {
           <RailPinIcon filled />
         </button>
       )}
-      {p.marker && <WindowMarker marker={p.marker} />}
       <span class={`fav${tab.loading ? ' loading' : ''}`}>
         {p.favicon ? (
           <img src={p.favicon} width={16} height={16} alt="" draggable={false} />
@@ -145,7 +141,6 @@ function sameProps(a: TabRowProps, b: TabRowProps): boolean {
     a.railPinned === b.railPinned &&
     a.onTogglePin === b.onTogglePin &&
     a.group?.color === b.group?.color &&
-    a.marker?.n === b.marker?.n &&
     a.onActivate === b.onActivate &&
     a.onClose === b.onClose &&
     TAB_KEYS.every((k) => a.tab[k] === b.tab[k])

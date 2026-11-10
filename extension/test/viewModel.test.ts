@@ -23,12 +23,12 @@ function setup() {
 }
 const shape = (s: TabStore) =>
   buildMainList(buildSnapshot(s, 1, DEFAULT_SETTINGS)).map((b) =>
-    b.rows.map((r) => (r.kind === 'tab' ? `${r.tab.id}@${r.depth}${r.marker ? 'm' : ''}` : r.key)),
+    b.rows.map((r) => (r.kind === 'tab' ? `${r.tab.id}@${r.depth}` : r.key)),
   );
 
 describe('main list layout', () => {
   it('flattens single-tab windows and builds a tree for the rest', () => {
-    expect(shape(setup())).toEqual([['11@0m'], ['w2', '21@1', 'g9', '22@1', '23@1', '24@1']]);
+    expect(shape(setup())).toEqual([['11@0'], ['w2', '21@1', 'g9', '22@1', '23@1', '24@1']]);
   });
 
   it('collapsed group hides its tabs but keeps the header', () => {
@@ -46,7 +46,7 @@ describe('main list layout', () => {
   it('a window that drops to one tab becomes a single row', () => {
     const s = setup();
     for (const id of [22, 23, 24]) s.tabRemoved(id);
-    expect(shape(s)[1]).toEqual(['21@0m']);
+    expect(shape(s)[1]).toEqual(['21@0']);
   });
 
   it('window header uses the active tab title', () => {

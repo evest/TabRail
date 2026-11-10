@@ -70,7 +70,6 @@ them. Keyboard: the context-menu key / Shift+F10 should open it for the selected
 
 - Settings panel (in the sidebar, stored in `chrome.storage.local`): density, font size, recent
   slot count, theme override.
-- Per-window color choice for the marker.
 
 ### Phase B
 

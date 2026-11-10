@@ -22,15 +22,6 @@
   --dup: #c26a00;
   --dup-tint: rgba(217, 119, 6, 0.16);
 
-  --m1: #3b82f6;
-  --m2: #e0623a;
-  --m3: #16a34a;
-  --m4: #a855f7;
-  --m5: #d97706;
-  --m6: #0891b2;
-  --m7: #db2777;
-  --m8: #64748b;
-
   /* chrome.tabGroups.Color */
   --g-grey: #5f6368;
   --g-blue: #1a73e8;
@@ -115,10 +106,16 @@ button {
   padding: 4px 0 2px;
 }
 
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 4px 3px;
+}
 .filter {
   display: block;
-  width: calc(100% - 8px);
-  margin: 0 4px 3px;
+  flex: 1;
+  min-width: 0;
   height: 24px;
   padding: 0 7px;
   font: inherit;
@@ -130,6 +127,42 @@ button {
 }
 .filter:focus {
   border-color: var(--accent);
+}
+
+.gear {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+}
+.gear .ico {
+  color: var(--fg-dim);
+}
+.gear:hover,
+.gear.open {
+  background: var(--hover);
+}
+.gear.open .ico {
+  color: var(--fg);
+}
+
+.settings {
+  margin: 0 4px 6px;
+  padding: 6px 8px;
+  background: var(--recent-bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.settings label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.settings input {
+  margin: 0;
 }
 
 .section-label {
@@ -359,13 +392,6 @@ button {
   color: var(--fg-dim);
 }
 
-.marker {
-  flex: none;
-  width: 4px;
-  height: 14px;
-  border-radius: 2px;
-}
-
 /* window header */
 .whead {
   font-weight: 600;
@@ -384,17 +410,11 @@ button {
   color: var(--head-focused-fg);
   opacity: 0.85;
 }
-.win.focused .whead .marker {
-  box-shadow: 0 0 0 1px var(--head-focused-fg);
-}
 .whead .title {
   font-weight: 600;
 }
 .whead.dim {
   color: var(--fg-dim-head);
-}
-.whead.dim .marker {
-  opacity: 0.6;
 }
 /* focused-but-minimized: keep text readable on the solid header, signal "dim" by fading the fill */
 .win.focused .whead.dim {

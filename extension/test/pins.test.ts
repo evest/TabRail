@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TabStore } from '../src/background/tabStore';
 import { buildSnapshot } from '../src/background/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/protocol';
-import { duplicateCounts, dupKey } from '../src/ui/viewModel';
+import { buildMainList, duplicateCounts, dupKey } from '../src/ui/viewModel';
 import { SIDEBAR_URL, tab, win } from './helpers';
 
 const A = 'https://a.example/';
@@ -73,5 +73,24 @@ describe('duplicates', () => {
   it('counts only URLs open more than once', () => {
     const snap = buildSnapshot(setup(), 1, DEFAULT_SETTINGS);
     expect([...duplicateCounts(snap)]).toEqual([[A, 2]]);
+  });
+});
+
+describe('pinned tabs in the window list', () => {
+  const rowsOf = (hidden: number[]) => {
+    const snap = buildSnapshot(setup(), 1, DEFAULT_SETTINGS);
+    return buildMainList(snap, new Set(hidden)).map((b) => b.rows.map((r) => r.key));
+  };
+
+  it('leaves hidden tabs out but keeps the window header', () => {
+    expect(rowsOf([12])).toEqual([['w1', 't11'], ['t21']]);
+  });
+
+  it('drops a window with nothing left to show', () => {
+    expect(rowsOf([21])).toEqual([['w1', 't11', 't12']]);
+  });
+
+  it('defaults to hiding pinned tabs', () => {
+    expect(DEFAULT_SETTINGS.showPinnedInList).toBe(false);
   });
 });

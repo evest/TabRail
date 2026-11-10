@@ -75,6 +75,7 @@ export class MockTransport implements Transport {
   private readonly listeners = new Listeners<ToUi>();
   private readonly store = new TabStore('mock://sidebar.html');
   private seq = 0;
+  private settings = { ...DEFAULT_SETTINGS };
   private nextTabId = 1000;
   private pending: ReturnType<typeof setTimeout> | null = null;
 
@@ -126,6 +127,9 @@ export class MockTransport implements Transport {
       case 'toggleRailPin':
         s.toggleRailPin(msg.tabId);
         break;
+      case 'updateSettings':
+        this.settings = { ...this.settings, ...msg.patch };
+        break;
       case 'focusLastWindow':
         console.info('[mock] focusLastWindow');
         return;
@@ -150,7 +154,7 @@ export class MockTransport implements Transport {
       this.pending = null;
       this.listeners.emit({
         type: 'snapshot',
-        snapshot: buildSnapshot(this.store, ++this.seq, DEFAULT_SETTINGS, mockFavicons),
+        snapshot: buildSnapshot(this.store, ++this.seq, this.settings, mockFavicons),
       });
     }, 50);
   }

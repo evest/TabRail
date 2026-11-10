@@ -105,9 +105,9 @@ export interface Snapshot {
   focusedWindowId: number | null;
   windows: WindowNode[];
   pinned: number[]; // tab ids in the sidebar's Pinned section (not Chrome tab pinning), in pin order
-  recent: number[]; // tab ids, most recent first, excluding the globally active tab and pinned tabs
+  recent: number[]; // tab ids, most recent first: the current tab first, excluding pinned tabs
   favicons: Record<string, string>; // favicon key (host) -> data: URL, only keys used in this snapshot
-  settings: { recentSlots: number };
+  settings: { recentSlots: number; showPinnedInList: boolean }; // persisted in chrome.storage.local
 }
 
 export type ToUi =
@@ -123,6 +123,7 @@ export type FromUi =
   | { type: "toggleWindowCollapsed"; windowId: number }
   | { type: "toggleGroupCollapsed"; groupId: number }
   | { type: "toggleRailPin"; tabId: number } // add/remove a tab in the Pinned section
+  | { type: "updateSettings"; patch: Partial<Settings> } // settings panel (gear next to the filter)
   | { type: "focusLastWindow" }; // second Esc in the filter
 ```
 
@@ -140,11 +141,12 @@ export type FromUi =
 ### Layout and density
 
 - Aim for as many rows as possible on screen: row height about 22 px, 12–13 px system font, 16 px favicon, single-line ellipsized title, and minimal padding. Target width is 260–340 px, and the layout must stay usable at 220 px.
-- **A window with one tab renders as a single row**: the tab row with a small window marker. It has no header and no indentation.
+- **A window with one tab renders as a single row**: a plain tab row with no header and no indentation.
 - **A window with more than one tab renders as a tree**: a compact header (active tab's title, tab count, collapse chevron) followed by indented tab rows. Tab groups form a collapsible sub-level with a colored left bar.
 - Window collapse state persists in `chrome.storage.local`, keyed by window ID.
 - The host or URL appears only in a tooltip, not as an extra line.
 - Light and dark modes follow the system theme.
+- No per-window color markers: with many windows open they were noise (removed in 0.8.0).
 
 ### Focus and state indicators
 
@@ -155,12 +157,12 @@ export type FromUi =
 
 ### Pinned tabs and duplicates
 
-- A **Pinned** section above Recent lists tabs pinned with the hover pin button; its leading pin unpins. Tabs only, not windows. Pins persist in `chrome.storage.local` as `{tabId, url}` and are re-matched by URL after a browser restart. The section only grows or shrinks when pins change.
+- A **Pinned** section above Recent lists tabs pinned with the hover pin button; its leading pin unpins. Tabs only, not windows. Pins persist in `chrome.storage.local` as `{tabId, url}` and are re-matched by URL after a browser restart. The section only grows or shrinks when pins change. Pinned tabs are hidden from the window list by default (setting `showPinnedInList`, in the gear panel next to the filter); a window whose tabs are all pinned disappears from the list.
 - **Duplicate tabs** (same URL ignoring `#fragment`; new-tab pages excluded) get a count badge. Duplicates of the selected tab (the current tab, or the filter selection) are highlighted.
 
 ### Recency without layout shift
 
-- A **Recent** strip sits at the top with a **fixed** number of slots (default 5, configurable) and a fixed height. It shows the most recently activated tabs across all windows. It updates in place, and its rows swap content rather than the strip resizing.
+- A **Recent** strip sits at the top with a **fixed** number of slots (default 5, configurable) and a fixed height. It shows the most recently activated tabs across all windows, with the current tab at the top as soon as it is selected. It updates in place, and its rows swap content rather than the strip resizing.
 - The **main list is stable**: windows in creation order, tabs in tab-strip order. The highlight moves; rows don't.
 - _Open decision:_ an optional `sortMode: 'mru-lazy'` that reorders the main list by recency, but only while the sidebar is neither hovered nor focused, and with FLIP animation. Don't build it until asked.
 
@@ -168,7 +170,7 @@ export type FromUi =
 
 - A filter input is pinned at the top, above Recent.
 - Matching is case-insensitive and token-based against title and URL; every token must match.
-- While a filter is active, show a flat ranked list: match quality first, then recency. Show each result's window marker so I can tell which window it belongs to.
+- While a filter is active, show a flat ranked list: match quality first, then recency.
 - Keys: ↑ and ↓ move the selection, Enter activates the selected tab, Esc clears the filter, and a second Esc returns focus to the last Chrome window.
 
 ### Interactions

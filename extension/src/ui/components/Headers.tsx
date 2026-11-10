@@ -1,11 +1,8 @@
 import type { GroupNode, WindowNode } from '../../shared/protocol';
-import type { Marker } from '../viewModel';
 import { ChevronIcon, SleepIcon } from './Icons';
-import { WindowMarker } from './WindowMarker';
 
 export function WindowHeader(p: {
   win: WindowNode;
-  marker: Marker;
   title: string;
   onToggle: (windowId: number) => void;
   onActivate: () => void;
@@ -28,7 +25,6 @@ export function WindowHeader(p: {
       >
         <ChevronIcon open={!p.win.collapsed} />
       </button>
-      <WindowMarker marker={p.marker} />
       <span class="title">{p.title}</span>
       {dim && <SleepIcon />}
       <span class="count">{p.win.tabs.length}</span>

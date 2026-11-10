@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_SETTINGS } from '../src/shared/protocol';
 import { TabStore } from '../src/background/tabStore';
 import { buildSnapshot } from '../src/background/snapshot';
 import { SIDEBAR_URL, tab, win } from './helpers';
@@ -24,24 +25,26 @@ function setup() {
 }
 
 describe('recent / MRU', () => {
-  it('falls back to tab.lastAccessed and excludes the globally active tab', () => {
-    const snap = buildSnapshot(setup(), 1, { recentSlots: 5 });
-    expect(snap.recent).toEqual([12, 13, 21]);
+  it('puts the current tab first, then falls back to tab.lastAccessed', () => {
+    const snap = buildSnapshot(setup(), 1, { ...DEFAULT_SETTINGS, recentSlots: 5 });
+    expect(snap.recent).toEqual([11, 12, 13, 21]);
   });
 
   it('our own MRU timestamps override tab.lastAccessed', () => {
     const s = setup();
     s.tabActivated(13, 1, 1000);
     s.tabActivated(11, 1, 2000);
-    expect(buildSnapshot(s, 1, { recentSlots: 5 }).recent).toEqual([13, 12, 21]);
+    expect(buildSnapshot(s, 1, { ...DEFAULT_SETTINGS, recentSlots: 5 }).recent).toEqual([
+      11, 13, 12, 21,
+    ]);
   });
 
-  it('cross-window: focusing another window moves the previous tab into recent', () => {
+  it('cross-window: the newly focused window tab goes to the top', () => {
     const s = setup();
     s.windowFocused(2, 5000);
-    expect(buildSnapshot(s, 1, { recentSlots: 2 }).recent).toEqual([12, 13]);
+    expect(buildSnapshot(s, 1, { ...DEFAULT_SETTINGS, recentSlots: 2 }).recent).toEqual([21, 12]);
     s.windowFocused(1, 6000);
-    expect(buildSnapshot(s, 2, { recentSlots: 2 }).recent).toEqual([21, 12]);
+    expect(buildSnapshot(s, 2, { ...DEFAULT_SETTINGS, recentSlots: 2 }).recent).toEqual([11, 21]);
   });
 
   it('caps at recentSlots and drops closed tabs', () => {
@@ -49,7 +52,7 @@ describe('recent / MRU', () => {
     s.tabActivated(13, 1, 1000);
     s.tabActivated(11, 1, 2000);
     s.tabRemoved(13);
-    expect(buildSnapshot(s, 1, { recentSlots: 1 }).recent).toEqual([12]);
+    expect(buildSnapshot(s, 1, { ...DEFAULT_SETTINGS, recentSlots: 1 }).recent).toEqual([11]);
     expect(s.mru[13]).toBeUndefined();
   });
 });
