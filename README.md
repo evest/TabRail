@@ -176,3 +176,10 @@ The UI can also run in a normal browser tab against a mock data source: run
   extension over Native Messaging; nothing changes in the UI.
 - More ideas are collected in [docs/WISHLIST.md](docs/WISHLIST.md). Design rules and the internal
   protocol are in [CLAUDE.md](CLAUDE.md).
+
+---
+
+## License
+
+[MIT](LICENSE). The settings icon comes from [Lucide](https://lucide.dev) (ISC); see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -1,6 +1,6 @@
 # TabRail: Chrome tab sidebar
 
-An always-visible sidebar that lists every Chrome window and tab, so I can find tabs quickly. It covers one Chrome profile on Windows.
+An always-visible sidebar that lists every Chrome window and tab, so tabs are quick to find. It covers one Chrome profile on Windows.
 
 - **Phase A (now):** extension only. The sidebar is a Chrome popup window, kept on top with PowerToys "Always On Top".
 - **Phase B (soon):** a WPF + WebView2 desktop host docked as a real Windows **AppBar**. It runs the _same UI bundle_ and gets data from the extension over Native Messaging.
@@ -242,4 +242,4 @@ Drag and drop, saved sessions, multiple profiles and sync. Ideas and planned fea
   - The stdin reader runs on a background thread.
 - **Registration:** an install script writes the host manifest JSON and sets `HKCU\Software\Google\Chrome\NativeMessagingHosts\no.tabrail.host`. The manifest's `allowed_origins` contains the stable extension ID.
 - **Relay:** stdin feeds `CoreWebView2.PostWebMessageAsJson`, and `WebMessageReceived` writes to stdout. The host adds only host-level messages such as `focusFilter`.
-- **AppBar:** use `SHAppBarMessage` (`ABM_NEW`, `ABM_QUERYPOS`, `ABM_SETPOS`, `ABM_REMOVE`), handle `ABN_POSCHANGED`, use per-monitor DPI v2, and let me choose the monitor and edge.
+- **AppBar:** use `SHAppBarMessage` (`ABM_NEW`, `ABM_QUERYPOS`, `ABM_SETPOS`, `ABM_REMOVE`), handle `ABN_POSCHANGED`, use per-monitor DPI v2, and let the user choose the monitor and edge.
