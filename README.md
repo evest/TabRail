@@ -134,6 +134,27 @@ Click the **gear** next to the filter.
 
 ---
 
+## Tip: keep it docked with PowerToys
+
+On Windows, two [Microsoft PowerToys](https://learn.microsoft.com/windows/powertoys/) utilities
+turn the TabRail window into a proper sidebar:
+
+- **Always On Top**: click the TabRail window and press **Win+Ctrl+T**. It stays above every other
+  window, with a colored border to show it's pinned. Press the shortcut again to release it.
+- **FancyZones**: create a layout with a narrow zone along one edge for TabRail (about 260–340 px)
+  and one or more zones for your Chrome windows. Hold **Shift** while dragging a window to snap it
+  into a zone, or use **Win+Arrow** keys once FancyZones overrides Windows Snap. Your browser
+  windows then fill the space next to the sidebar instead of sliding underneath it.
+
+<p align="center">
+  <img src="docs/images/powertoys.png" width="900" alt="Illustration: TabRail pinned on top in a narrow left zone with an orange Always On Top border, a Chrome window in the middle zone, and a second window being dragged into the highlighted right zone" />
+</p>
+
+_Illustration only: a mock desktop, not a real screenshot._ Phase B (see [Roadmap](#roadmap)) will
+do this natively as a Windows AppBar.
+
+---
+
 ## Install (unpacked)
 
 TabRail isn't on the Chrome Web Store. Build it and load it unpacked:
@@ -149,8 +170,7 @@ pnpm build
 3. Click the TabRail toolbar button (or press **Ctrl+Shift+1**) to open the sidebar.
 
 The sidebar is a Chrome popup window. It opens at the left edge of the screen, 300 px wide and full
-height, and remembers where you put it. To keep it above other windows, use PowerToys
-**Always On Top** (Win+Ctrl+T).
+height, and remembers where you put it. To keep it in view, see the PowerToys tip below.
 
 After pulling changes, run `pnpm build` again and click the reload button on the extension's card;
 the version number on the card shows which build is loaded.
