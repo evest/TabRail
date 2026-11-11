@@ -45,6 +45,9 @@ export interface RailPin {
   url: string;
 }
 
+/** Most detached pins kept (tabs whose window closed); the oldest go first. */
+const MAX_DETACHED_PINS = 30;
+
 /**
  * Pure in-memory model of Chrome's windows/tabs/groups, driven by Chrome events.
  * No chrome.* access here: index.ts feeds events in, snapshot.ts reads state out.
@@ -61,13 +64,19 @@ export class TabStore {
   readonly collapsedGroups = new Set<number>();
   sidebarWindowId: number | null = null;
   lastFocusedWindowId: number | null = null;
-  /** Tab ids pinned to the sidebar's Pinned section, in pin order. */
-  railPins: number[] = [];
+  /**
+   * The Pinned section, in pin order. A pin is `live` while its tab is open. Pins whose window
+   * closed (including Chrome quitting, which closes every window) or that haven't been matched yet
+   * after a restart (session restore can finish after the service worker starts) stay detached
+   * and re-attach to the first tab that shows up with their URL. Closing the tab itself unpins.
+   */
+  private pins: { tabId: number; url: string; live: boolean }[] = [];
   /** windowId -> sidebar-only name and the last known (non-empty) tab URLs. */
   readonly windowNames = new Map<number, { name: string; urls: string[] }>();
   /**
-   * Names of windows closed this session, kept so that closing Chrome (which closes every window)
-   * doesn't lose them before the next start re-matches them. Capped; cleared on init.
+   * Names without a live window: saved names not matched yet after a start (session restore can
+   * finish after the service worker starts) and names of windows closed this session (closing
+   * Chrome closes every window). Persisted, and re-attached when a matching window shows up.
    */
   private closedNames: WindowName[] = [];
   /**
@@ -89,6 +98,7 @@ export class TabStore {
     this.sidebarWindowId = null;
     this.lastFocusedWindowId = null;
     this.focusHistory = [];
+    this.pins = [];
 
     for (const w of data.windows) {
       if (w.id == null) continue;
@@ -117,21 +127,12 @@ export class TabStore {
 
     this.matchWindowNames(data.windowNames ?? []);
 
-    // Rail pins: same tab id and URL (service worker restart), else the first unclaimed tab with
-    // the same URL (browser restart, where tab ids are reassigned). Unmatched pins are dropped.
-    this.railPins = [];
-    let prunedPins = false;
-    for (const pin of data.railPins ?? []) {
-      const same = this.tabs.get(pin.tabId);
-      const match =
-        same?.url === pin.url && !this.railPins.includes(pin.tabId)
-          ? pin.tabId
-          : [...this.tabs.values()].find((t) => t.url === pin.url && !this.railPins.includes(t.id!))
-              ?.id;
-      if (match != null) this.railPins.push(match);
-      if (match !== pin.tabId) prunedPins = true;
-    }
-    this.dirty = { mru: false, collapsed: prunedCollapsed, pins: prunedPins };
+    // Rail pins start detached and are re-attached by URL; unmatched ones wait for their tab.
+    this.pins = (data.railPins ?? [])
+      .filter((p) => p.url)
+      .map((p) => ({ tabId: p.tabId, url: p.url, live: false }));
+    this.dirty = { mru: false, collapsed: prunedCollapsed, pins: false };
+    this.reattachPins();
 
     const focused =
       data.windows.find((w) => w.focused && w.id != null && this.isIncluded(w.id))?.id ??
@@ -194,7 +195,7 @@ export class TabStore {
       this.windowNames.delete(windowId);
       this.closedNames = [{ windowId, ...named }, ...this.closedNames].slice(0, 10);
     }
-    for (const id of this.order.get(windowId) ?? []) this.forgetTab(id);
+    for (const id of [...(this.order.get(windowId) ?? [])]) this.forgetTab(id, true);
     this.order.delete(windowId);
     this.windows.delete(windowId);
     for (const g of [...this.groups.values()]) if (g.windowId === windowId) this.groupRemoved(g.id);
@@ -288,8 +289,12 @@ export class TabStore {
     this.detectSidebar(tab);
   }
 
-  tabRemoved(tabId: number): void {
-    this.forgetTab(tabId);
+  /**
+   * tabs.onRemoved. `windowClosing` (removeInfo.isWindowClosing) keeps the tab's pin, detached,
+   * so pins survive closing a window or quitting Chrome.
+   */
+  tabRemoved(tabId: number, windowClosing = false): void {
+    this.forgetTab(tabId, windowClosing);
   }
 
   tabMoved(tabId: number, windowId: number, toIndex: number): void {
@@ -333,9 +338,9 @@ export class TabStore {
     this.tabs.set(added.id, { ...added });
     if (!order) this.tabCreated(added);
     if (mruAt != null) this.touch(added.id, mruAt);
-    const pin = this.railPins.indexOf(removedTabId);
-    if (pin !== -1) {
-      this.railPins[pin] = added.id;
+    const pin = this.pins.find((p) => p.live && p.tabId === removedTabId);
+    if (pin) {
+      pin.tabId = added.id;
       this.dirty.pins = true;
     }
   }
@@ -389,17 +394,54 @@ export class TabStore {
     return [...live, ...this.closedNames];
   }
 
+  /** Tab ids shown in the Pinned section (live pins), in pin order. */
+  get railPins(): number[] {
+    return this.pins.filter((p) => p.live).map((p) => p.tabId);
+  }
+
   toggleRailPin(tabId: number): void {
-    const i = this.railPins.indexOf(tabId);
-    if (i !== -1) this.railPins.splice(i, 1);
-    else if (this.tabs.has(tabId)) this.railPins.push(tabId);
-    else return;
+    const i = this.pins.findIndex((p) => p.live && p.tabId === tabId);
+    const url = this.tabs.get(tabId)?.url;
+    if (i !== -1) this.pins.splice(i, 1);
+    else if (url) {
+      // A detached pin for the same URL would otherwise grab the next tab with that URL.
+      this.pins = this.pins.filter((p) => p.live || p.url !== url);
+      this.pins.push({ tabId, url, live: true });
+    } else return;
     this.dirty.pins = true;
   }
 
-  /** What to persist: ids plus URLs for re-matching after a browser restart. */
+  /**
+   * Attach detached pins to open tabs: the same tab id with the same URL (service worker
+   * restart), else the first unpinned tab with that URL (browser restart: ids are reassigned).
+   * Cheap when nothing is detached; called by the owner before every snapshot.
+   */
+  reattachPins(): void {
+    if (this.pins.every((p) => p.live)) return;
+    const taken = new Set(this.railPins);
+    for (const p of this.pins) {
+      if (p.live) continue;
+      const same = this.tabs.get(p.tabId);
+      const id =
+        same?.url === p.url && !taken.has(p.tabId) && this.isIncluded(same.windowId)
+          ? p.tabId
+          : [...this.tabs.values()].find(
+              (t) => t.url === p.url && !taken.has(t.id!) && this.isIncluded(t.windowId),
+            )?.id;
+      if (id == null) continue;
+      p.tabId = id;
+      p.live = true;
+      taken.add(id);
+      this.dirty.pins = true;
+    }
+  }
+
+  /** What to persist: every pin, live or detached, with its last known URL. */
   railPinsForStorage(): RailPin[] {
-    return this.railPins.map((tabId) => ({ tabId, url: this.tabs.get(tabId)?.url ?? '' }));
+    return this.pins.map((p) => ({
+      tabId: p.tabId,
+      url: (p.live && this.tabs.get(p.tabId)?.url) || p.url,
+    }));
   }
 
   toggleGroupCollapsed(groupId: number): void {
@@ -428,15 +470,22 @@ export class TabStore {
       .filter(Boolean);
   }
 
-  /**
-   * Re-attach persisted names to live windows by tab-URL overlap (at least half), best matches
-   * first, preferring the same window id on ties (service worker restart). Unmatched names drop.
-   */
   private matchWindowNames(saved: WindowName[]): void {
     this.windowNames.clear();
-    this.closedNames = [];
+    this.closedNames = saved.filter((s) => s.name && s.urls?.length);
+    this.reattachNames();
+  }
+
+  /**
+   * Attach names without a window to unnamed live windows by tab-URL overlap (at least half), best
+   * matches first, preferring the same window id on ties (service worker restart). Unmatched names
+   * keep waiting. Cheap when nothing is waiting; called by the owner before every snapshot.
+   */
+  reattachNames(): void {
+    if (this.closedNames.length === 0) return;
+    const saved = this.closedNames;
     const live = [...this.windows.keys()]
-      .filter((id) => this.isIncluded(id))
+      .filter((id) => this.isIncluded(id) && !this.windowNames.has(id))
       .map((id) => ({ id, urls: this.urlsOf(id) }));
     const pairs = saved.flatMap((s, si) =>
       live.map((w) => ({
@@ -455,19 +504,31 @@ export class TabStore {
       const s = saved[p.si]!;
       this.windowNames.set(p.id, { name: s.name, urls: this.urlsOf(p.id) });
     }
+    if (usedSaved.size) this.closedNames = saved.filter((_, i) => !usedSaved.has(i));
   }
 
-  private forgetTab(tabId: number): void {
+  private forgetTab(tabId: number, keepPin = false): void {
+    const url = this.tabs.get(tabId)?.url;
     this.removeFromOrder(tabId);
     this.tabs.delete(tabId);
     if (tabId in this.mru) {
       delete this.mru[tabId];
       this.dirty.mru = true;
     }
-    const pin = this.railPins.indexOf(tabId);
-    if (pin !== -1) {
-      this.railPins.splice(pin, 1);
-      this.dirty.pins = true;
+    const pin = this.pins.findIndex((p) => p.live && p.tabId === tabId);
+    if (pin === -1) return;
+    this.dirty.pins = true;
+    const entry = this.pins[pin]!;
+    if (!keepPin) {
+      this.pins.splice(pin, 1);
+      return;
+    }
+    entry.live = false;
+    if (url) entry.url = url;
+    const detached = this.pins.filter((p) => !p.live);
+    if (detached.length > MAX_DETACHED_PINS) {
+      const drop = new Set(detached.slice(0, detached.length - MAX_DETACHED_PINS));
+      this.pins = this.pins.filter((p) => !drop.has(p));
     }
   }
 

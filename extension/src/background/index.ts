@@ -34,6 +34,8 @@ function broadcast(msg: ToUi): void {
 }
 
 const scheduler = new SnapshotScheduler(50, (seq) => {
+  store.reattachPins();
+  store.reattachNames();
   broadcast({ type: 'snapshot', snapshot: buildSnapshot(store, seq, settings, favicons) });
   void persist();
 });
@@ -126,7 +128,7 @@ chrome.tabs.onUpdated.addListener(
     if (change.status === 'complete' || change.favIconUrl) ensureFavicon(tab, !!change.favIconUrl);
   }),
 );
-chrome.tabs.onRemoved.addListener(on((id) => store.tabRemoved(id)));
+chrome.tabs.onRemoved.addListener(on((id, info) => store.tabRemoved(id, info.isWindowClosing)));
 chrome.tabs.onMoved.addListener(on((id, info) => store.tabMoved(id, info.windowId, info.toIndex)));
 chrome.tabs.onDetached.addListener(on((id) => store.tabDetached(id)));
 chrome.tabs.onAttached.addListener(

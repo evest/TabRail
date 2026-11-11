@@ -64,8 +64,12 @@ theme override.
 
 ## Done
 
+- **Pins survive quitting Chrome** (0.10.1): closing a window used to drop its pins, so quitting
+  (which closes every window) emptied the Pinned section. Pins and names now wait for their tabs
+  and windows to come back, including when session restore finishes after the service worker
+  starts. Verified with a real Chrome quit and relaunch.
 - **Windows** (0.10.0): sidebar-only window names (right-click a header or tab → Name window…),
-  re-matched by tab URLs after a restart (not yet tested across a real restart); Collapse all /
+  re-matched by tab URLs after a restart; Collapse all /
   Expand all in the header menu; minimized windows kept in place, moved to the bottom, or hidden;
   a flat list layout with no window headers or groups, sortable by window/tab order or by name.
 - **Right-click menu** (0.9.0): on tabs: Pin/Unpin, Close duplicate(s), Minimize/Restore window,
@@ -78,7 +82,7 @@ theme override.
   (off by default).
 - **Pinned tabs** (0.4.0): hover pin button on any tab row; Pinned section above Recent, leading
   pin unpins. Tabs only, not windows. Kept in `chrome.storage.local` with their URL and re-matched
-  by URL after a browser restart (not yet tested across a real restart). Left out of Recent.
+  by URL after a browser restart. Left out of Recent.
 - **Duplicate tabs** (0.4.0): count badge on tabs whose URL (ignoring `#fragment`) is open more
   than once; duplicates of the selected tab are highlighted.
 - **Recent restyle** (0.3.0): labelled card with "time since used".

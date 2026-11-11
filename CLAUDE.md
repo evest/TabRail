@@ -157,7 +157,7 @@ export type FromUi =
 - **A window with one tab renders as a single row**: a plain tab row with no header and no indentation.
 - **A window with more than one tab renders as a tree**: a compact header (active tab's title, tab count, collapse chevron) followed by indented tab rows. Tab groups form a collapsible sub-level with a colored left bar.
 - Window collapse state persists in `chrome.storage.local`, keyed by window ID. Collapse all / Expand all are in the window header's right-click menu.
-- **Window names** (right-click → Name window…) are sidebar-only and replace the active tab's title in the header; a named single-tab window gets a header. Names persist in `chrome.storage.local` with the window's tab URLs and are re-matched after a restart by URL overlap (at least half). Names of windows closed during the session are kept (capped) so quitting Chrome doesn't lose them.
+- **Window names** (right-click → Name window…) are sidebar-only and replace the active tab's title in the header; a named single-tab window gets a header. Names persist in `chrome.storage.local` with the window's tab URLs and are re-matched after a restart by URL overlap (at least half). Names of windows closed during the session are kept (capped) so quitting Chrome doesn't lose them, and names not matched at startup keep waiting for their window.
 - **Settings panel** (gear next to the filter): list layout (windows and groups, or a flat list of tabs with no headers or groups, sortable by window/tab order or by name), minimized windows (keep in place, move to the bottom, or hide), and whether pinned tabs also appear in the list.
 - The host or URL appears only in a tooltip, not as an extra line.
 - Light and dark modes follow the system theme.
@@ -172,7 +172,7 @@ export type FromUi =
 
 ### Pinned tabs and duplicates
 
-- A **Pinned** section above Recent lists tabs pinned with the hover pin button; its leading pin unpins. Tabs only, not windows. Pins persist in `chrome.storage.local` as `{tabId, url}` and are re-matched by URL after a browser restart. The section only grows or shrinks when pins change. Pinned tabs are hidden from the window list by default (setting `showPinnedInList`, in the gear panel next to the filter); a window whose tabs are all pinned disappears from the list.
+- A **Pinned** section above Recent lists tabs pinned with the hover pin button; its leading pin unpins. Tabs only, not windows. Pins persist in `chrome.storage.local` as `{tabId, url}` and are re-matched by URL after a browser restart. Closing a window, or quitting Chrome (which closes every window), keeps its pins detached; they re-attach to the first tab that opens with their URL, also when session restore finishes after the service worker has started. Closing the tab itself unpins it. The section only grows or shrinks when pins change. Pinned tabs are hidden from the window list by default (setting `showPinnedInList`, in the gear panel next to the filter); a window whose tabs are all pinned disappears from the list.
 - **Duplicate tabs** (same URL ignoring `#fragment`; new-tab pages excluded) get a count badge. Duplicates of the selected tab (the current tab, or the filter selection) are highlighted.
 
 ### Recency without layout shift

@@ -71,6 +71,21 @@ describe('window names', () => {
     ]);
   });
 
+  it('waits for session restore when the service worker starts first (regression)', () => {
+    const s = new TabStore(SIDEBAR_URL);
+    const saved = [{ windowId: 90, name: 'Mail', urls: [u('b'), u('c')] }];
+    s.init({ windows: [], groups: [], windowNames: saved });
+    expect(s.windowNamesForStorage()).toEqual(saved); // not lost while waiting
+    s.windowCreated(win(5, []));
+    s.tabCreated(tab(51, 5, 0, { url: u('b') }));
+    s.tabCreated(tab(52, 5, 1, { url: u('c') }));
+    s.reattachNames();
+    expect(buildSnapshot(s, 1, DEFAULT_SETTINGS).windows[0]!.name).toBe('Mail');
+    expect(s.windowNamesForStorage()).toEqual([
+      { windowId: 5, name: 'Mail', urls: [u('b'), u('c')] },
+    ]);
+  });
+
   it('urlOverlap is relative to the larger window', () => {
     expect(urlOverlap(['a', 'b'], ['a', 'b', 'c', 'd'])).toBe(0.5);
     expect(urlOverlap([], ['a'])).toBe(0);

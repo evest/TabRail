@@ -46,14 +46,54 @@ describe('rail pins', () => {
     expect(s.railPins).toEqual([22]);
   });
 
-  it('re-matches persisted pins by id, then by URL (browser restart), else drops them', () => {
+  it('re-matches persisted pins by id, then by URL (browser restart), else keeps waiting', () => {
     const s = setup([
       { tabId: 11, url: A }, // same id + url: kept
       { tabId: 999, url: B }, // id gone, url open as tab 12: re-matched
-      { tabId: 998, url: 'https://gone.example/' }, // dropped
+      { tabId: 998, url: 'https://gone.example/' }, // not open: kept, detached
     ]);
     expect(s.railPins).toEqual([11, 12]);
     expect(s.dirty.pins).toBe(true);
+    expect(s.railPinsForStorage().map((p) => p.url)).toEqual([A, B, 'https://gone.example/']);
+  });
+
+  it('survives Chrome quitting: closing every window keeps the pins (regression)', () => {
+    const s = setup();
+    s.toggleRailPin(12);
+    s.toggleRailPin(21);
+    // Chrome may report the tabs (isWindowClosing) or only the windows.
+    s.tabRemoved(11, true);
+    s.tabRemoved(12, true);
+    s.windowRemoved(1);
+    s.windowRemoved(2);
+    expect(s.railPins).toEqual([]);
+    const saved = s.railPinsForStorage();
+    expect(saved.map((p) => p.url)).toEqual([B, `${A}#section`]);
+
+    // Next start: the service worker can start before session restore has opened any window.
+    const next = new TabStore(SIDEBAR_URL);
+    next.init({ windows: [], groups: [], railPins: saved });
+    expect(next.railPinsForStorage()).toEqual(saved); // nothing lost while waiting
+    next.windowCreated(win(7, [], { focused: true }));
+    next.tabCreated(tab(70, 7, 0, { url: `${A}#section` }));
+    next.tabCreated(tab(71, 7, 1, { url: B }));
+    next.reattachPins();
+    expect(next.railPins).toEqual([71, 70]); // pin order kept
+  });
+
+  it('closing the tab itself still unpins it', () => {
+    const s = setup();
+    s.toggleRailPin(12);
+    s.tabRemoved(12);
+    expect(s.railPinsForStorage()).toEqual([]);
+  });
+
+  it('pinning a URL again replaces its detached pin', () => {
+    const s = setup([{ tabId: 998, url: 'https://gone.example/' }]);
+    s.tabCreated(tab(13, 1, 2, { url: 'https://gone.example/' }));
+    s.toggleRailPin(13); // pinned by hand before reattach ran
+    s.reattachPins();
+    expect(s.railPinsForStorage()).toEqual([{ tabId: 13, url: 'https://gone.example/' }]);
   });
 
   it('persists ids with current URLs', () => {
